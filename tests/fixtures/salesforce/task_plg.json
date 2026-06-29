@@ -1,0 +1,14 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Task"},
+      "Id": "00T0004",
+      "Subject": "Big fish on free plan",
+      "Description": null,
+      "WhoId": "00C0004",
+      "Trigger__c": "big_fish_on_free"
+    }
+  ]
+}

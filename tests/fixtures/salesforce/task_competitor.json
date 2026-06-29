@@ -1,0 +1,13 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Task"},
+      "Id": "00T0002",
+      "Subject": "Demo request",
+      "Description": "Curious how you compare.",
+      "WhoId": "00C0002"
+    }
+  ]
+}

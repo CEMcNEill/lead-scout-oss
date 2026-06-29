@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Slow loop: nightly voice + judgment learning and account-resolution
+  corrections. Runs once a day, off-hours.
+
+  Install (edit the paths first):
+    cp deploy/com.posthog.lead-agent.slow.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.posthog.lead-agent.slow.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.posthog.lead-agent.slow</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/uv</string>
+        <string>run</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>engine.service</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/evilmac/Dev/lead-scout</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MODE</key><string>slow</string>
+        <key>SOURCE</key><string>salesforce</string>
+        <key>LEDGER_PATH</key>
+        <string>/Users/evilmac/Dev/lead-scout/ledger/lead_runs.db</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- run nightly at 02:30 local -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>2</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/slow.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/slow.err.log</string>
+</dict>
+</plist>

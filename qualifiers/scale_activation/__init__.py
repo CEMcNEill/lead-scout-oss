@@ -1,0 +1,1 @@
+"""Scale-activation qualifier package."""

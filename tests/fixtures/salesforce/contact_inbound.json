@@ -1,0 +1,24 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Contact"},
+      "Id": "00C0001",
+      "Name": "Sam Rivera",
+      "Email": "sam@acme.com",
+      "Title": "Head of Product",
+      "LeadSource": "Contact sales form",
+      "OwnerId": "0055000000REPUSER",
+      "DoNotCall": false,
+      "HasOptedOutOfEmail": false,
+      "AccountId": "001ACME000000001",
+      "Account": {
+        "attributes": {"type": "Account"},
+        "Name": "Acme",
+        "Website": "https://www.acme.com",
+        "Industry": "Software"
+      }
+    }
+  ]
+}

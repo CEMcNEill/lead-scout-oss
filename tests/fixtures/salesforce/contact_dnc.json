@@ -1,0 +1,24 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Contact"},
+      "Id": "00C0003",
+      "Name": "Pat Lee",
+      "Email": "pat@beta.io",
+      "Title": "Engineering Manager",
+      "LeadSource": "Employee Referral",
+      "OwnerId": "0055000000OTHERREP",
+      "DoNotCall": true,
+      "HasOptedOutOfEmail": false,
+      "AccountId": "001BETA000000001",
+      "Account": {
+        "attributes": {"type": "Account"},
+        "Name": "Beta",
+        "Website": null,
+        "Industry": "Fintech"
+      }
+    }
+  ]
+}

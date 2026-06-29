@@ -1,0 +1,12 @@
+{
+  "status": 0,
+  "result": {
+    "totalSize": 2,
+    "done": true,
+    "records": [
+      {"attributes": {"type": "Task"}, "Id": "00T0001"},
+      {"attributes": {"type": "Task"}, "Id": "00T0002"}
+    ]
+  },
+  "warnings": []
+}

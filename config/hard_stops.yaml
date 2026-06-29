@@ -1,0 +1,36 @@
+# Hard-stop configuration (shared, team-level).
+#
+# These are categorical correctness checks, not judgment. A hit blocks the lead
+# before any qualifier runs. Keep this list tight: everything that is not a
+# hard-stop is evidence for the qualifier to weigh.
+
+# Free / personal email providers. A lead whose contact email is on one of these
+# is a non-business address.
+personal_email_domains:
+  - gmail.com
+  - googlemail.com
+  - yahoo.com
+  - ymail.com
+  - hotmail.com
+  - outlook.com
+  - live.com
+  - icloud.com
+  - me.com
+  - aol.com
+  - proton.me
+  - protonmail.com
+  - gmx.com
+  - mail.com
+
+# Competitor domains. You do not draft outreach to a competitor no matter how
+# good the usage looks.
+competitor_domains:
+  - amplitude.com
+  - mixpanel.com
+  - heap.io
+  - segment.com
+  - fullstory.com
+  - logrocket.com
+  - statsig.com
+  - launchdarkly.com
+  - datadoghq.com

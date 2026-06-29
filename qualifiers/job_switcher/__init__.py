@@ -1,0 +1,1 @@
+"""Job-switcher qualifier package."""

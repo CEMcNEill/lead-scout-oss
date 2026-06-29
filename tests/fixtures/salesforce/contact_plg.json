@@ -1,0 +1,25 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Contact"},
+      "Id": "00C0004",
+      "Name": "Sam Rivera",
+      "Email": "sam@acme.com",
+      "Title": "Software Engineer",
+      "LeadSource": "Product-led",
+      "OwnerId": "0055000000REPUSER",
+      "DoNotCall": false,
+      "HasOptedOutOfEmail": false,
+      "AccountId": "001ACME000000001",
+      "Account": {
+        "attributes": {"type": "Account"},
+        "Name": "Acme",
+        "Website": "https://acme.com",
+        "Industry": "Software"
+      },
+      "PostHog_Account_Id__c": "acct_acme"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+*.sqlite3
+.DS_Store
+.claude/*
+!.claude/settings.json
+# ship only the onboarding skill so a fresh clone can run it; other skills under
+# .claude/skills are installed locally by setup and stay ignored.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/lead-scout-setup/
+ledger/
+
+# generated / local config
+.agent-tmp/
+config/proposals/
+config/enrichment.yaml
+config/exemplars.json
+staged_drafts/
+
+# personal voice (learned from your own sent mail; local only).
+# Ship only the template; setup seeds config/voice/chris.md from it.
+config/voice/*
+!config/voice/chris.example.md

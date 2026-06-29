@@ -1,0 +1,10 @@
+{
+  "taskId": "mcp-task_recorded_notfound",
+  "searchId": "cgas-search-id_recorded_notfound",
+  "companies": {},
+  "contacts": [],
+  "notFoundContacts": [
+    {"contactName": "Jordan Avery", "companyIdentifier": "acme.com"}
+  ],
+  "timestampMs": 1782661035960
+}

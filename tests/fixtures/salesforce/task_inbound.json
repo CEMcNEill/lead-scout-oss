@@ -1,0 +1,13 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Task"},
+      "Id": "00T0001",
+      "Subject": "Inbound demo request from Acme",
+      "Description": "Our funnels keep breaking in production and we can't tell where users drop. Can PostHog help us debug this?",
+      "WhoId": "00C0001"
+    }
+  ]
+}

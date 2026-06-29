@@ -1,0 +1,31 @@
+{
+  "taskId": "mcp-task_recorded_company",
+  "searchId": "cgas-search-id_recorded_company",
+  "companies": {
+    "acme.com": {
+      "entityType": "company",
+      "url": "https://www.linkedin.com/company/acme",
+      "name": "Acme",
+      "size": "51-200 employees",
+      "type": "Privately Held",
+      "domain": "acme.com",
+      "country": "US",
+      "website": "http://www.acme.com",
+      "industry": "Software Development",
+      "locality": "Austin, Texas",
+      "description": "Acme builds cloud-based software for B2B teams.",
+      "employee_count": 197,
+      "total_funding_amount_range_usd": "$25M - $50M",
+      "annual_revenue": "10M-25M",
+      "entityId": "acme.com",
+      "enrichments": []
+    }
+  },
+  "contacts": [
+    {"name": "Dana Lopez", "latest_experience_company": "Acme", "latest_experience_title": "Chief Product and Technology Officer", "url": "https://www.linkedin.com/in/danalopez", "location_name": "Austin, Texas, United States", "domain": "acme.com", "entityId": "100000001", "enrichments": []},
+    {"name": "Pat Rivera", "latest_experience_company": "Acme", "latest_experience_title": "Executive Vice President", "url": "https://www.linkedin.com/in/patrivera", "location_name": "Denver, Colorado, United States", "domain": "acme.com", "entityId": "100000002", "enrichments": []},
+    {"name": "Sam Chen", "latest_experience_company": "Acme", "latest_experience_title": "Group Product Manager", "url": "https://www.linkedin.com/in/samchen", "location_name": "Austin, Texas, United States", "domain": "acme.com", "entityId": "100000003", "enrichments": []},
+    {"name": "Alex Kim", "latest_experience_company": "Acme", "latest_experience_title": "Backend Engineer II", "url": "https://www.linkedin.com/in/alexkim", "location_name": "Seattle, Washington, United States", "domain": "acme.com", "entityId": "100000004", "enrichments": []}
+  ],
+  "timestampMs": 1782661038901
+}

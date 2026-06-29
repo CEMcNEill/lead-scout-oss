@@ -1,0 +1,11 @@
+{
+  "status": 0,
+  "result": {
+    "totalSize": 1,
+    "done": true,
+    "records": [
+      {"attributes": {"type": "User"}, "Id": "0055000000REPUSER"}
+    ]
+  },
+  "warnings": []
+}

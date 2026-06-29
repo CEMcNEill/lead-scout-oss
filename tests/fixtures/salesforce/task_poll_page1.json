@@ -1,0 +1,9 @@
+{
+  "totalSize": 3,
+  "done": false,
+  "nextRecordsUrl": "/services/data/v60.0/query/01g5000000PAGE2-2000",
+  "records": [
+    {"attributes": {"type": "Task"}, "Id": "00T0001"},
+    {"attributes": {"type": "Task"}, "Id": "00T0002"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "totalSize": 1,
+  "done": true,
+  "records": [
+    {
+      "attributes": {"type": "Task"},
+      "Id": "00T0003",
+      "Subject": "Follow up",
+      "Description": null,
+      "WhoId": "00C0003"
+    }
+  ]
+}

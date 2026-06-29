@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Agent-plus-MCP fast loop: every 5 minutes, run one sweep as a local Claude agent
+  that uses your connected MCPs (Clay, Gmail, Slack) and the engine. This is the
+  default runtime: it leans on the MCPs you already have rather than bot/OAuth
+  setup. It must run on your machine, where your MCP connections exist.
+
+  Install (edit the path first):
+    cp deploy/com.posthog.lead-agent.agent.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.posthog.lead-agent.agent.plist
+
+  This burns model tokens per sweep (the agent orchestrates). The headless
+  daemon plists (fast/slow) remain as the no-Claude alternative.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.posthog.lead-agent.agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/evilmac/Dev/lead-scout/scripts/run_sweep.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/evilmac/Dev/lead-scout</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SOURCE</key><string>salesforce</string>
+        <key>LEDGER_PATH</key>
+        <string>/Users/evilmac/Dev/lead-scout/ledger/lead_runs.db</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/agent.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/agent.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,104 @@
+{
+  "tasks": {
+    "t_inbound": {
+      "task_id": "t_inbound",
+      "trigger": "demo_request",
+      "category": "inbound",
+      "inbound_message": "Our funnels keep breaking in production and we can't tell where users drop. Can PostHog help us debug this?",
+      "lead": {
+        "name": "Sam Rivera",
+        "email": "sam@acme.com",
+        "title": "Head of Product",
+        "company": "Acme",
+        "domain": "acme.com",
+        "lead_source": "demo_request"
+      }
+    },
+    "t_plg": {
+      "task_id": "t_plg",
+      "trigger": "big_fish_on_free",
+      "category": "product-led",
+      "signal": "big_fish",
+      "lead": {
+        "name": "Sam Rivera",
+        "email": "sam@acme.com",
+        "title": "Software Engineer",
+        "company": "Acme",
+        "domain": "acme.com",
+        "lead_source": "plg_signup"
+      },
+      "account_ref": "acct_acme"
+    },
+    "t_onboard": {
+      "task_id": "t_onboard",
+      "trigger": "onboarding_assigned",
+      "category": "onboarding",
+      "lead": {
+        "name": "Jo Kim",
+        "email": "jo@beta.io",
+        "title": "Engineering Manager",
+        "company": "Beta",
+        "domain": "beta.io",
+        "lead_source": "new_customer"
+      },
+      "account_ref": "acct_beta"
+    },
+    "t_competitor": {
+      "task_id": "t_competitor",
+      "trigger": "demo_request",
+      "category": "inbound",
+      "inbound_message": "Curious how you compare.",
+      "lead": {
+        "name": "Alex Doe",
+        "email": "alex@mixpanel.com",
+        "title": "PM",
+        "company": "Mixpanel",
+        "domain": "mixpanel.com",
+        "lead_source": "demo_request"
+      }
+    },
+    "t_personal": {
+      "task_id": "t_personal",
+      "trigger": "demo_request",
+      "category": "inbound",
+      "inbound_message": "Just exploring.",
+      "lead": {
+        "name": "Pat Lee",
+        "email": "pat.lee@gmail.com",
+        "title": "Hobbyist",
+        "company": "",
+        "domain": "gmail.com",
+        "lead_source": "demo_request"
+      }
+    }
+  },
+  "persons": {
+    "sam@acme.com": {"name": "Sam Rivera", "title": "Software Engineer", "linkedin": "in/samrivera"},
+    "dana@acme.com": {"name": "Dana Lopez", "title": "VP Engineering", "linkedin": "in/danalopez"},
+    "jo@beta.io": {"name": "Jo Kim", "title": "Engineering Manager"}
+  },
+  "companies": {
+    "acme.com": {"industry": "developer tools", "employees": 900, "stack": ["react", "node"], "funding_stage": "series_b"},
+    "beta.io": {"industry": "fintech", "employees": 150, "stack": ["python"]}
+  },
+  "usage": {
+    "acct_acme": {
+      "events_30d": 6200000,
+      "products": ["analytics", "session_replay"],
+      "trajectory": "up_3x_qoq",
+      "roster": [
+        {"email": "sam@acme.com", "name": "Sam Rivera", "touches": ["analytics"]},
+        {"email": "dana@acme.com", "name": "Dana Lopez", "touches": ["session_replay", "analytics"]}
+      ]
+    },
+    "acct_beta": {
+      "events_30d": 90000,
+      "products": ["analytics"],
+      "activation": ["installed_sdk"],
+      "trajectory": "new",
+      "roster": [
+        {"email": "jo@beta.io", "name": "Jo Kim", "touches": ["analytics"]}
+      ]
+    }
+  }
+}

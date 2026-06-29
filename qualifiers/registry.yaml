@@ -1,0 +1,146 @@
+# Declarative dispatch: matching criteria -> qualifier, one rule per qualifier.
+#
+# The router evaluates rules top to bottom and takes the first whose criteria
+# match the CRM record. Criteria read only normalized fields the Salesforce read
+# already put on the record (no research), so routing stays deterministic:
+#   - category: top-level, from Lead_Source__c / Subject tag / LeadSource
+#               (product-led | inbound | onboarding | outbound)
+#   - signal:   product-led sub-signal, from the closed matching_criteria set
+# Both normalizations live in shared/signals.py. Outbound is excluded at the poll,
+# so it never reaches the router.
+#
+# Add a product-led signal by adding its row in shared/signals.py, a rule here,
+# and registering the qualifier; the shell is untouched.
+#
+# Criteria grammar (per rule, under `all` or `any`):
+#   {field: <dotted path into the CRM record>, equals: <v>}
+#   {field: <dotted path>, in: [<v>, ...]}
+#   {field: <dotted path>, exists: true|false}
+
+rules:
+  # --- product-led, sub-routed 1:1 on the normalized signal ---------------
+  - qualifier: big_fish
+    lead_type: big_fish
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: big_fish}
+
+  - qualifier: mrr_fit
+    lead_type: mrr_fit
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: mrr_fit}
+
+  - qualifier: spend_spike
+    lead_type: spend_spike
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: spend_spike}
+
+  - qualifier: startup_rolloff
+    lead_type: startup_rolloff
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: startup_rolloff}
+
+  - qualifier: new_customer
+    lead_type: new_customer
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: new_customer}
+
+  - qualifier: recent_fundraise
+    lead_type: recent_fundraise
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: recent_fundraise}
+
+  - qualifier: lookalike
+    lead_type: lookalike
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: lookalike}
+
+  - qualifier: trust_center_nda
+    lead_type: trust_center_nda
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: trust_center_nda}
+
+  - qualifier: unmanaged_ticket
+    lead_type: unmanaged_ticket
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: unmanaged_ticket}
+
+  - qualifier: scale_activation
+    lead_type: scale_activation
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: scale_activation}
+
+  - qualifier: eng_headcount_growth
+    lead_type: eng_headcount_growth
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: eng_headcount_growth}
+
+  - qualifier: job_switcher
+    lead_type: job_switcher
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: job_switcher}
+
+  # onboarding referral is product-led (active customer) but handled by the
+  # activation-led onboarding qualifier, not its own.
+  - qualifier: onboarding
+    lead_type: onboarding
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+        - {field: signal, equals: onboarding_referral}
+
+  # product-led fallback: a matching_criteria value not in the known set. Keeps
+  # new Salesforce values working (account-first pass) instead of misrouting.
+  - qualifier: plg_unclassified
+    lead_type: plg_unclassified
+    criteria:
+      all:
+        - {field: category, equals: product-led}
+
+  # --- onboarding ---------------------------------------------------------
+  - qualifier: onboarding
+    lead_type: onboarding
+    criteria:
+      any:
+        - {field: category, equals: onboarding}
+        - {field: trigger, in: [onboarding, onboarding_assigned, new_customer]}
+
+  # --- inbound ------------------------------------------------------------
+  # someone reached out: an inbound category, or the task carries a message.
+  - qualifier: inbound
+    lead_type: inbound
+    criteria:
+      any:
+        - {field: category, equals: inbound}
+        - {field: inbound_message, exists: true}
+        - {field: trigger, in: [inbound, inbound_inquiry, demo_request, contact_us]}
+
+  # Catch-all: anything not otherwise matched is treated as inbound, the most
+  # general handler. Always last.
+  - qualifier: inbound
+    lead_type: inbound
+    criteria:
+      all: []

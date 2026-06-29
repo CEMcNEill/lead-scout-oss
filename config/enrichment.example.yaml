@@ -1,0 +1,35 @@
+# Enrichment provider config (headless service). Copy to config/enrichment.yaml,
+# fill in your provider's endpoints and response field paths, and set the API key
+# in ENRICHMENT_API_KEY. Until this exists, person/company enrichment falls back
+# to the stub (thin dossiers).
+#
+# The URLs are templates: {domain}, {name}, {email} are filled per lead. The maps
+# translate the provider's JSON response into the normalized fields the synthesis
+# layer grounds against (dotted paths, list indexes allowed: "data.0.title").
+#
+# The example paths below are placeholders -- set them to your chosen provider's
+# actual response shape.
+
+company_url: "https://api.your-provider.com/v1/company?domain={domain}"
+person_url: "https://api.your-provider.com/v1/person?name={name}&company={domain}"
+
+auth_header: "Authorization"
+auth_value: "Bearer {key}"
+
+# vendor JSON path -> our normalized field
+company_map:
+  name: "name"
+  industry: "industry"
+  employee_count: "employee_count"
+  size: "size"
+  description: "description"
+  linkedin_url: "linkedin_url"
+  website: "website"
+
+person_map:
+  name: "full_name"
+  title: "job_title"
+  seniority: "job_seniority"
+  role: "job_role"
+  location: "location_name"
+  linkedin_url: "linkedin_url"

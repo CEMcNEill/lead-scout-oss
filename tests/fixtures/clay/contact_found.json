@@ -1,0 +1,20 @@
+{
+  "taskId": "mcp-task_recorded_found",
+  "searchId": "cgas-search-id_recorded_found",
+  "companies": {},
+  "contacts": [
+    {
+      "name": "Dana Lopez",
+      "profile_id": "100000001",
+      "latest_experience_company": "Acme",
+      "latest_experience_title": "Chief Product and Technology Officer",
+      "latest_experience_start_date": "2018-07",
+      "url": "https://www.linkedin.com/in/danalopez",
+      "location_name": "Austin, Texas, United States",
+      "domain": "acme.com",
+      "entityId": "100000001",
+      "enrichments": []
+    }
+  ],
+  "timestampMs": 1782661040000
+}

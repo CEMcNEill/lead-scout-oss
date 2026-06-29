@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fast loop: poll Salesforce every 5 minutes, qualify, stage drafts, post Slack.
+
+  Install (edit the paths first):
+    cp deploy/com.posthog.lead-agent.fast.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.posthog.lead-agent.fast.plist
+
+  launchd relaunches the process every interval; each run does one sweep and
+  exits. Secrets come from .env / the macOS Keychain, never this file.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.posthog.lead-agent.fast</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/uv</string>
+        <string>run</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>engine.service</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/evilmac/Dev/lead-scout</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MODE</key><string>fast</string>
+        <key>SOURCE</key><string>salesforce</string>
+        <key>LEDGER_PATH</key>
+        <string>/Users/evilmac/Dev/lead-scout/ledger/lead_runs.db</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/fast.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/fast.err.log</string>
+</dict>
+</plist>

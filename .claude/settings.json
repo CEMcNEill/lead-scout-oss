@@ -1,0 +1,19 @@
+{
+  "//": "Shared permission allowlist so the scheduled lead-agent sweeps run non-interactively. These are the only tools the lead-agent and lead-agent-nightly skills use. Tighten or move to settings.local.json per taste.",
+  "permissions": {
+    "allow": [
+      "Bash(uv run python -m engine.agent_runtime:*)",
+      "Bash(mkdir:*)",
+      "Bash(mktemp:*)",
+      "Read",
+      "Write(.agent-tmp/**)",
+      "mcp__claude_ai_Clay__find-and-enrich-company",
+      "mcp__claude_ai_Clay__find-and-enrich-list-of-contacts",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Slack__slack_send_message",
+      "mcp__claude_ai_Slack__slack_read_thread"
+    ]
+  }
+}

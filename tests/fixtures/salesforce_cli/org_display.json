@@ -1,0 +1,12 @@
+{
+  "status": 0,
+  "result": {
+    "id": "00D5000000ORG000",
+    "username": "chris.m@posthog.com",
+    "accessToken": "00Dxx!fake",
+    "instanceUrl": "https://na1.my.salesforce.com",
+    "alias": "posthog",
+    "connectedStatus": "Connected"
+  },
+  "warnings": []
+}
