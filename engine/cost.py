@@ -41,7 +41,7 @@ _DEFAULT_TIERS: dict[str, str] = {
     ModelTier.ROUTING_FALLBACK: "claude-haiku-4-5-20251001",
     ModelTier.RESEARCH_SYNTHESIS: "claude-sonnet-4-6",
     ModelTier.QUALIFIER_JUDGMENT: "claude-opus-4-8",
-    ModelTier.DRAFTER: "claude-sonnet-4-6",
+    ModelTier.DRAFTER: "claude-opus-4-8",
     ModelTier.LEARNING: "claude-opus-4-8",
 }
 
