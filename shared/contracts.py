@@ -423,6 +423,9 @@ class LeadRun:
     slack_thread_ref: str | None = None
     human_disposition: str | None = None
     human_rationale: str | None = None
+    # ts of the latest rep reply we have already acknowledged, so the ack fires
+    # once per piece of feedback rather than every sweep.
+    acked_reply_ts: str | None = None
     sent_draft: Draft | None = None
     draft_diff: str | None = None
     outcome: Outcome = field(default_factory=Outcome)
@@ -452,6 +455,7 @@ class LeadRun:
             "slack_thread_ref": self.slack_thread_ref,
             "human_disposition": self.human_disposition,
             "human_rationale": self.human_rationale,
+            "acked_reply_ts": self.acked_reply_ts,
             "sent_draft": self.sent_draft.to_dict() if self.sent_draft else None,
             "draft_diff": self.draft_diff,
             "outcome": self.outcome.to_dict(),
@@ -481,6 +485,7 @@ class LeadRun:
             slack_thread_ref=d.get("slack_thread_ref"),
             human_disposition=d.get("human_disposition"),
             human_rationale=d.get("human_rationale"),
+            acked_reply_ts=d.get("acked_reply_ts"),
             sent_draft=Draft.from_dict(d["sent_draft"]) if d.get("sent_draft") else None,
             draft_diff=d.get("draft_diff"),
             outcome=Outcome.from_dict(d.get("outcome", {})),

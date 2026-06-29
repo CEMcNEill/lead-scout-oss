@@ -460,6 +460,7 @@ def main(argv: list[str] | None = None) -> int:
                 "account_corrections": len(result.account_corrections),
                 "voice_proposal": result.voice_proposal_path,
                 "rubric_proposal": result.rubric_proposal_path,
+                "acknowledgements": result.acknowledgements,
             }, indent=2))
         elif args.cmd == "status":
             report = status_report(ledger, default_rep_config())

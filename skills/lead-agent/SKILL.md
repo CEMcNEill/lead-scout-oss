@@ -88,8 +88,9 @@ Run all engine commands from the repo root with `uv run`. Write Clay JSON under
       `channel_id = SLACK_DM_CHANNEL_ID` (the DM channel, starts with `D`; NOT
       `SLACK_USER_ID` -- a user id is rejected for reads) and
       `message_ts = slack_thread_ref`, and collect the messages under
-      `threads[<slack_thread_ref>]` as `{text, user}` in `.agent-tmp/updates.json`
-      (leave `sent` empty: `{"sent": {}, "threads": {...}}`). If `SLACK_DM_CHANNEL_ID`
+      `threads[<slack_thread_ref>]` as `{text, user, ts}` in `.agent-tmp/updates.json`
+      (include each message's `ts` -- the engine dedups acknowledgements on it; leave
+      `sent` empty: `{"sent": {}, "threads": {...}}`). If `SLACK_DM_CHANNEL_ID`
       is unset, fall back to the `D...` channel captured from a card post this sweep;
       if none was posted this sweep, skip the read and note that
       `SLACK_DM_CHANNEL_ID` must be set for replies to be detected.
@@ -104,8 +105,16 @@ Run all engine commands from the repo root with `uv run`. Write Clay JSON under
       records the override. The heavier voice/rubric learning is the separate
       nightly skill, not this step.
 
+   c. Acknowledge the rep's feedback. The command prints `acknowledgements`: a list
+      of `{task_id, thread_ts, message}`, one per reply newly processed this sweep
+      (the engine has already deduped, so each fires once). For each, post the
+      `message` as a threaded reply via the Slack MCP `slack_send_message`
+      (`channel_id = SLACK_DM_CHANNEL_ID`, `thread_ts = <thread_ts>`). This is how
+      the rep sees their feedback was seen and acted on; an empty list means nothing
+      new to acknowledge, so post nothing.
+
 4. Report a one-line summary: leads processed, staged drafts, blocked, skipped,
-   and updates applied.
+   updates applied, and replies acknowledged.
 
 ## Notes
 
