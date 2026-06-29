@@ -41,6 +41,22 @@ _ENGINE_THREAD_MESSAGES = 2
 # Emoji the engine reacts with to acknowledge it has processed a rep's reply.
 _ACK_EMOJI = "white_check_mark"
 
+# Prefix on the threaded ack the MCP path posts back. Because that ack is posted
+# as the rep (the MCP has no bot identity), the engine must recognise and skip its
+# own acks when reading a thread, or it would treat them as new feedback.
+_ACK_MARKER = "✅ lead-scout:"
+
+
+def _ack_message(human: str | None, llm: str, is_disagreement: bool) -> str:
+    """The threaded acknowledgement text. Leads with _ACK_MARKER so the engine can
+    filter it out on the next read."""
+    base = f"{_ACK_MARKER} Seen and acted on."
+    if is_disagreement and human:
+        return f"{base} Recorded your call: {human.replace('_', ' ')}."
+    if human:
+        return f"{base} Confirmed: {llm.replace('_', ' ')}."
+    return base
+
 
 @dataclass
 class VoiceEdit:
@@ -75,6 +91,10 @@ class SlowLoopResult:
     runs_with_replies: int = 0
     voice_proposal_path: str | None = None
     rubric_proposal_path: str | None = None
+    # Per newly-processed rep reply: a threaded ack the caller posts back. The
+    # headless path reacts instead (see _acknowledge_replies); the MCP/agent path
+    # has no reactions tool, so it posts these as replies.
+    acknowledgements: list[dict[str, str]] = field(default_factory=list)
 
 
 def _diff(staged: str, sent: str) -> str:
@@ -252,26 +272,49 @@ class SlowLoop:
             if not run.slack_thread_ref or run.disposition is None:
                 continue
             messages = self._slack.read_thread(channel, run.slack_thread_ref)
-            replies = messages[_ENGINE_THREAD_MESSAGES:]
+            # Replies after the engine's two messages, minus our own ack replies.
+            # The MCP path posts acks as the rep, so without this filter the engine
+            # would read its own ack as fresh feedback and loop.
+            replies = [
+                m for m in messages[_ENGINE_THREAD_MESSAGES:]
+                if not m.get("text", "").startswith(_ACK_MARKER)
+            ]
             reply_text = "\n".join(m.get("text", "") for m in replies).strip()
             if not reply_text:
                 continue
+            # Dedup on the latest rep reply ts: skip a reply we've already
+            # acknowledged so the ack fires once, not every sweep. When no ts is
+            # present (recorded fixtures) we can't dedup, so fall through.
+            latest_ts = next((m["ts"] for m in reversed(replies) if m.get("ts")), None)
+            if latest_ts is not None and latest_ts == run.acked_reply_ts:
+                continue
             result.runs_with_replies += 1
-            self._acknowledge_replies(channel, replies)
             parsed = self._parse_reply(reply_text)
             human = parsed.get("disposition")
             run.human_disposition = human
             run.human_rationale = parsed.get("rationale") or reply_text
-            self._ledger.update(run)
 
             llm = run.disposition.disposition.value
-            if human and human != llm:
+            is_disagreement = bool(human and human != llm)
+            if is_disagreement:
                 disagreements.append(
                     Disagreement(
                         task_id=run.task_id, llm_disposition=llm, human_disposition=human,
                         human_rationale=run.human_rationale,
                     )
                 )
+
+            # Acknowledge once, when we can dedup (have a ts): react on the headless
+            # path and emit a threaded ack for the MCP path to post.
+            if latest_ts is not None:
+                self._acknowledge_replies(channel, [m for m in replies if m.get("ts")])
+                result.acknowledgements.append({
+                    "task_id": run.task_id,
+                    "thread_ts": run.slack_thread_ref,
+                    "message": _ack_message(human, llm, is_disagreement),
+                })
+                run.acked_reply_ts = latest_ts
+            self._ledger.update(run)
         return disagreements
 
     def _acknowledge_replies(self, channel: str, replies: list[dict[str, Any]]) -> None:
@@ -310,7 +353,10 @@ class SlowLoop:
             if not resolution:
                 continue
             messages = self._slack.read_thread(channel, run.slack_thread_ref)
-            reply = " ".join(m.get("text", "") for m in messages[_ENGINE_THREAD_MESSAGES:]).lower()
+            reply = " ".join(
+                m.get("text", "") for m in messages[_ENGINE_THREAD_MESSAGES:]
+                if not m.get("text", "").startswith(_ACK_MARKER)
+            ).lower()
             if not reply:
                 continue
             chosen = self._match_candidate(reply, resolution["candidates"])

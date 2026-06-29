@@ -235,17 +235,57 @@ def test_thread_with_no_rep_reply_is_skipped(ledger, tmp_path):
     assert slack.reactions == []  # nothing to acknowledge
 
 
-def test_processed_reply_gets_checkmark_reaction(ledger, tmp_path):
+def test_processed_reply_gets_reaction_and_threaded_ack(ledger, tmp_path):
     ledger.insert(_run("B", to="sam@beta.io", subject="x", body="y",
                        disp=DispositionKind.CALL, thread="171000000.000001"))
     slack = RecordedSlackClient(thread_messages={"171000000.000001": [
         {"text": "card"}, {"text": "reasoning"},
         {"text": "nah, self-serve", "ts": "171000000.000002"},  # rep reply, has a ts
     ]})
-    _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    result = _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    # headless reaction
     assert slack.reactions == [
         {"channel": "U1", "timestamp": "171000000.000002", "emoji": "white_check_mark"},
     ]
+    # MCP-path threaded ack the agent will post
+    assert len(result.acknowledgements) == 1
+    ack = result.acknowledgements[0]
+    assert ack["task_id"] == "B" and ack["thread_ts"] == "171000000.000001"
+    assert ack["message"].startswith("✅ lead-scout:")
+    assert "self serve" in ack["message"]  # disagreement: rep's call recorded
+    # dedup recorded on the run
+    assert ledger.get("run_B").acked_reply_ts == "171000000.000002"
+
+
+def test_ack_fires_once_not_every_sweep(ledger, tmp_path):
+    ledger.insert(_run("B", to="sam@beta.io", subject="x", body="y",
+                       disp=DispositionKind.CALL, thread="171000000.000001"))
+    slack = RecordedSlackClient(thread_messages={"171000000.000001": [
+        {"text": "card"}, {"text": "reasoning"},
+        {"text": "nah, self-serve", "ts": "171000000.000002"},
+    ]})
+    _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    # second sweep over the same unchanged thread: nothing new to acknowledge
+    result2 = _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    assert result2.runs_with_replies == 0
+    assert result2.acknowledgements == []
+    assert len(slack.reactions) == 1  # not re-reacted
+
+
+def test_engine_ignores_its_own_ack_message(ledger, tmp_path):
+    run = _run("B", to="sam@beta.io", subject="x", body="y",
+               disp=DispositionKind.CALL, thread="171000000.000001")
+    run.acked_reply_ts = "171000000.000002"  # already acked the rep's reply
+    ledger.insert(run)
+    slack = RecordedSlackClient(thread_messages={"171000000.000001": [
+        {"text": "card"}, {"text": "reasoning"},
+        {"text": "nah, self-serve", "ts": "171000000.000002"},
+        {"text": "✅ lead-scout: Seen and acted on. Recorded your call: self serve.",
+         "ts": "171000000.000003"},  # the engine's own ack, posted as the rep
+    ]})
+    result = _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    assert result.runs_with_replies == 0  # the ack is filtered; no new rep feedback
+    assert result.acknowledgements == []
 
 
 def test_ack_skips_replies_without_a_ts(ledger, tmp_path):
@@ -258,3 +298,4 @@ def test_ack_skips_replies_without_a_ts(ledger, tmp_path):
     result = _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
     assert result.runs_with_replies == 1
     assert slack.reactions == []
+    assert result.acknowledgements == []  # no ts to dedup on, so no ack emitted
