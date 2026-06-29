@@ -232,3 +232,29 @@ def test_thread_with_no_rep_reply_is_skipped(ledger, tmp_path):
     result = _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_nightly("2026-06-29")
     assert result.runs_with_replies == 0
     assert result.disagreements == []
+    assert slack.reactions == []  # nothing to acknowledge
+
+
+def test_processed_reply_gets_checkmark_reaction(ledger, tmp_path):
+    ledger.insert(_run("B", to="sam@beta.io", subject="x", body="y",
+                       disp=DispositionKind.CALL, thread="171000000.000001"))
+    slack = RecordedSlackClient(thread_messages={"171000000.000001": [
+        {"text": "card"}, {"text": "reasoning"},
+        {"text": "nah, self-serve", "ts": "171000000.000002"},  # rep reply, has a ts
+    ]})
+    _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    assert slack.reactions == [
+        {"channel": "U1", "timestamp": "171000000.000002", "emoji": "white_check_mark"},
+    ]
+
+
+def test_ack_skips_replies_without_a_ts(ledger, tmp_path):
+    # the recorded MCP-path fixtures often omit ts; the ack must not crash or react
+    ledger.insert(_run("B", to="sam@beta.io", subject="x", body="y",
+                       disp=DispositionKind.CALL, thread="171000000.000001"))
+    slack = RecordedSlackClient(thread_messages={"171000000.000001": [
+        {"text": "card"}, {"text": "reasoning"}, {"text": "agreed, self-serve"},  # no ts
+    ]})
+    result = _slowloop(ledger, RecordedGmailClient(), slack, tmp_path).run_updates_only("2026-06-29")
+    assert result.runs_with_replies == 1
+    assert slack.reactions == []

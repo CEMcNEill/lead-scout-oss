@@ -56,6 +56,26 @@ def test_error_response_raises():
         SlackBotClient("t", http=http).post_message("Ubad", "hi")
 
 
+def test_add_reaction_posts_to_reactions_add():
+    http = FakeHttp(responses={"reactions.add": {"ok": True}})
+    SlackBotClient("t", http=http).add_reaction("D123", "171.0001", "white_check_mark")
+    method, payload = http.calls[0]
+    assert method == "reactions.add"
+    assert payload == {"channel": "D123", "timestamp": "171.0001", "name": "white_check_mark"}
+
+
+def test_add_reaction_treats_already_reacted_as_success():
+    http = FakeHttp(responses={"reactions.add": {"ok": False, "error": "already_reacted"}})
+    # no raise: re-running a sweep that already acked must not error
+    SlackBotClient("t", http=http).add_reaction("D123", "171.0001", "white_check_mark")
+
+
+def test_add_reaction_raises_on_other_errors():
+    http = FakeHttp(responses={"reactions.add": {"ok": False, "error": "message_not_found"}})
+    with pytest.raises(SlackError):
+        SlackBotClient("t", http=http).add_reaction("D123", "bad", "white_check_mark")
+
+
 def test_notifier_works_with_bot_client():
     """The bot client drops into SlackNotifier unchanged (it's a SlackClient)."""
     from engine.slack import SlackNotifier

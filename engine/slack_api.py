@@ -74,6 +74,16 @@ class SlackBotClient:
             raise SlackError(f"conversations.replies failed: {resp.get('error')}")
         return list(resp.get("messages", []))
 
+    def add_reaction(self, channel: str, timestamp: str, emoji: str) -> None:
+        """Add an acknowledgement reaction to a rep's message. Idempotent: Slack
+        returns already_reacted when the bot has reacted before, which we treat as
+        success so a re-run does not error."""
+        resp = self._http(
+            "reactions.add", {"channel": channel, "timestamp": timestamp, "name": emoji}
+        )
+        if not resp.get("ok") and resp.get("error") != "already_reacted":
+            raise SlackError(f"reactions.add failed: {resp.get('error')}")
+
 
 def build_slack_client_from_env() -> SlackBotClient:
     token = os.environ.get("SLACK_BOT_TOKEN")

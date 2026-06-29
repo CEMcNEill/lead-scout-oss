@@ -38,6 +38,12 @@ class SlackClient(Protocol):
         """Parent message plus replies, for the slow loop's judgment signal."""
         ...
 
+    def add_reaction(self, channel: str, timestamp: str, emoji: str) -> None:
+        """Best-effort acknowledgement reaction on a rep's reply. Optional: clients
+        that cannot react (the MCP path posts as the rep and has no reactions tool)
+        may omit it, so callers invoke it defensively and swallow failures."""
+        ...
+
 
 def _claim_value(dossier: list[Claim], field: str) -> Any:
     return next((c.value for c in dossier if c.field == field), None)
@@ -143,6 +149,7 @@ class SlackNotifier:
 class RecordedSlackClient:
     def __init__(self, thread_messages: dict[str, list[dict[str, Any]]] | None = None) -> None:
         self.posts: list[dict[str, Any]] = []
+        self.reactions: list[dict[str, Any]] = []
         self._threads = thread_messages or {}
         self._counter = 0
 
@@ -154,3 +161,6 @@ class RecordedSlackClient:
 
     def read_thread(self, channel: str, thread_ts: str) -> list[dict[str, Any]]:
         return list(self._threads.get(thread_ts, []))
+
+    def add_reaction(self, channel: str, timestamp: str, emoji: str) -> None:
+        self.reactions.append({"channel": channel, "timestamp": timestamp, "emoji": emoji})

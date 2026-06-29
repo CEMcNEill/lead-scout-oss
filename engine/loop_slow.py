@@ -38,6 +38,9 @@ from shared.model import ModelClient, ModelTier, parse_json
 # Replies beyond the engine's own two messages are the rep's judgment signal.
 _ENGINE_THREAD_MESSAGES = 2
 
+# Emoji the engine reacts with to acknowledge it has processed a rep's reply.
+_ACK_EMOJI = "white_check_mark"
+
 
 @dataclass
 class VoiceEdit:
@@ -254,6 +257,7 @@ class SlowLoop:
             if not reply_text:
                 continue
             result.runs_with_replies += 1
+            self._acknowledge_replies(channel, replies)
             parsed = self._parse_reply(reply_text)
             human = parsed.get("disposition")
             run.human_disposition = human
@@ -269,6 +273,24 @@ class SlowLoop:
                     )
                 )
         return disagreements
+
+    def _acknowledge_replies(self, channel: str, replies: list[dict[str, Any]]) -> None:
+        """React with a checkmark on each rep reply we just processed, so the rep
+        can see at a glance which messages have been picked up. Best-effort: the
+        client may not support reactions (the MCP path), the message may lack a ts,
+        or Slack may reject the call -- none of that should block the apply. The
+        bot client treats already_reacted as success, so this is safe to re-run."""
+        react = getattr(self._slack, "add_reaction", None)
+        if react is None:
+            return
+        for message in replies:
+            ts = message.get("ts")
+            if not ts:
+                continue
+            try:
+                react(channel, ts, _ACK_EMOJI)
+            except Exception:  # noqa: BLE001 - acknowledgement must never break the apply
+                pass
 
     # --- account-resolution corrections ---------------------------------
 
