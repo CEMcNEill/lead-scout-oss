@@ -46,8 +46,8 @@ def test_wizard_precedence_keep_override_and_force(monkeypatch, tmp_path):
     (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=old-key\nSLACK_USER_ID=Uold\nSOURCE=fixtures\n")
 
     # core prompts in order: SF_INSTANCE_URL, SF_TARGET_ORG, SLACK_USER_ID,
-    # REP_SIGNATURE, REP_CALENDAR_URL, then the headless y/N
-    inputs = ["https://acme.my.salesforce.com", "", "U123", "Dana",
+    # SLACK_DM_CHANNEL_ID, REP_SIGNATURE, REP_CALENDAR_URL, then the headless y/N
+    inputs = ["https://acme.my.salesforce.com", "", "U123", "D123", "Dana",
               "https://calendly.com/dana/30min", "n"]
     secrets = [""]  # blank -> keep the existing ANTHROPIC_API_KEY
     _script(monkeypatch, inputs, secrets)
@@ -59,6 +59,7 @@ def test_wizard_precedence_keep_override_and_force(monkeypatch, tmp_path):
     assert env["SOURCE"] == "salesforce"           # forced by the wizard
     assert env["SF_AUTH"] == "cli"
     assert env["SF_INSTANCE_URL"] == "https://acme.my.salesforce.com"
+    assert env["SLACK_DM_CHANNEL_ID"] == "D123"
     assert env["REP_SIGNATURE"] == "Dana"
     assert env["REP_CALENDAR_URL"] == "https://calendly.com/dana/30min"
     assert env["GMAIL_CLIENT_ID"] == ""            # headless skipped, stays blank
@@ -92,8 +93,8 @@ def test_from_json_writes_env_noninteractive(monkeypatch, tmp_path):
 def test_wizard_collects_headless_when_opted_in(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "REPO_ROOT", tmp_path)
     (tmp_path / ".env.example").write_text(EXAMPLE)
-    inputs = ["https://acme.my.salesforce.com", "", "U123", "Dana", "", "y",
-              "gmail-client-id", "me@acme.com"]  # SF_INSTANCE, target, slack, sig, cal, y/N, then 2 non-secret headless
+    inputs = ["https://acme.my.salesforce.com", "", "U123", "D123", "Dana", "", "y",
+              "gmail-client-id", "me@acme.com"]  # SF_INSTANCE, target, slack, dm-channel, sig, cal, y/N, then 2 non-secret headless
     secrets = ["sk-key", "gmail-secret", "xoxb-token", "enrich-key"]  # ANTHROPIC + 3 headless secrets
     _script(monkeypatch, inputs, secrets)
     assert cfg.main([]) == 0

@@ -34,6 +34,10 @@ CORE_FIELDS = [
      "Which org the sf CLI targets. Blank uses your default org."),
     ("SLACK_USER_ID", "Slack user id (DM target for review cards)", False,
      "Your own Slack user id; the review cards DM you here. Required."),
+    ("SLACK_DM_CHANNEL_ID", "Slack DM channel id (starts with D)", False,
+     "The DM channel the cards post to. Needed to READ your thread replies back: "
+     "Slack rejects a user id for reads. Blank falls back to SLACK_USER_ID, which "
+     "can post but not read, so replies won't be detected until this is set."),
     ("REP_SIGNATURE", "Your name for the email sign-off", False,
      "Signs drafts, e.g. Chris."),
     ("REP_CALENDAR_URL", "Your booking link", False,

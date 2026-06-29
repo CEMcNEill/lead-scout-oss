@@ -194,7 +194,12 @@ def default_rep_config():
         gmail_account=os.environ.get("GMAIL_ACCOUNT", "chris.m@posthog.com"),
         voice_profile_ref=str(voice_profile_path()),
         signature=os.environ.get("REP_SIGNATURE", "Chris"),
-        slack_post_target=os.environ.get("SLACK_USER_ID", ""),
+        # Prefer the DM channel id (D...): Slack accepts a user id for posting but
+        # not for reading a thread, so reply detection needs the channel id.
+        slack_post_target=(
+            os.environ.get("SLACK_DM_CHANNEL_ID")
+            or os.environ.get("SLACK_USER_ID", "")
+        ),
         budget_cap_usd=float(os.environ.get("REP_BUDGET_CAP_USD", "50")),
         calendar_url=os.environ.get("REP_CALENDAR_URL", ""),
     )

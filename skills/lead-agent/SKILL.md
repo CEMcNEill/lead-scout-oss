@@ -69,8 +69,13 @@ Run all engine commands from the repo root with `uv run`. Write Clay JSON under
       This prints `{card, reasoning}`.
 
    g. Post to the rep's DM via the Slack MCP `slack_send_message` with
-      `channel_id = SLACK_USER_ID` and `message = card`. Take the returned message
-      ts, then post `reasoning` as a reply with `thread_ts = <ts>`.
+      `channel_id = SLACK_USER_ID` and `message = card`. From the response take both
+      the message `ts` AND the `channel` it resolved to (the DM channel id, starts
+      with `D`) -- replies are read back from that channel id, not the user id. Post
+      `reasoning` as a reply with `thread_ts = <ts>` on the same `channel`. If env
+      `SLACK_DM_CHANNEL_ID` is unset, this resolved `D...` channel is its value:
+      tell the rep to set it (`uv run python -m engine.configure`) so idle sweeps
+      that post nothing can still read replies.
 
    h. Record the thread:
 
@@ -79,11 +84,15 @@ Run all engine commands from the repo root with `uv run`. Write Clay JSON under
 3. Update check (apply any replies the rep left since the last sweep):
 
    a. `uv run python -m engine.agent_runtime slow-targets` lists runs with a
-      `slack_thread_ref`. For each, use the Slack MCP `slack_read_thread`
-      (`channel_id = SLACK_USER_ID`, `message_ts = slack_thread_ref`) and collect
-      the messages under `threads[<slack_thread_ref>]` as `{text, user}` in
-      `.agent-tmp/updates.json` (leave `sent` empty: `{"sent": {}, "threads":
-      {...}}`).
+      `slack_thread_ref`. For each, use the Slack MCP `slack_read_thread` with
+      `channel_id = SLACK_DM_CHANNEL_ID` (the DM channel, starts with `D`; NOT
+      `SLACK_USER_ID` -- a user id is rejected for reads) and
+      `message_ts = slack_thread_ref`, and collect the messages under
+      `threads[<slack_thread_ref>]` as `{text, user}` in `.agent-tmp/updates.json`
+      (leave `sent` empty: `{"sent": {}, "threads": {...}}`). If `SLACK_DM_CHANNEL_ID`
+      is unset, fall back to the `D...` channel captured from a card post this sweep;
+      if none was posted this sweep, skip the read and note that
+      `SLACK_DM_CHANNEL_ID` must be set for replies to be detected.
 
    b. Apply them (corrections + recorded overrides only, no proposals):
 
