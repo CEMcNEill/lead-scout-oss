@@ -57,6 +57,12 @@ def test_route_onboarding_referral_is_product_led_to_onboarding(router):
     assert r.lead_type == "onboarding"
 
 
+def test_route_outbound(router):
+    r = router.route({"category": "outbound", "lead": {}})
+    assert r.qualifier == "outbound"
+    assert r.lead_type == "outbound"
+
+
 def test_route_inbound_by_category(router):
     assert router.route({"category": "inbound", "lead": {}}).qualifier == "inbound"
 
@@ -106,6 +112,17 @@ def test_personal_address(hs_config):
 
 def test_teammate_managed(hs_config):
     assert "teammate_managed" in check_hard_stops(_rec(lead={"owner_other_rep": True}), hs_config)
+
+
+def test_active_sequence_stops_live_outbound(hs_config):
+    # an outbound lead still in a running sequence is suppressed
+    rec = _rec(lead={"active_sequence": True})
+    assert "active_sequence" in check_hard_stops(rec, hs_config)
+
+
+def test_no_active_sequence_stop_when_sequence_done(hs_config):
+    # a finished/paused sequence (the usual outbound case) is not stopped
+    assert "active_sequence" not in check_hard_stops(_rec(lead={"active_sequence": False}), hs_config)
 
 
 def test_multiple_stops_accumulate(hs_config):

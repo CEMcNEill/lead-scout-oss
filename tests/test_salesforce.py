@@ -146,6 +146,33 @@ def test_poll_status_is_configurable():
     assert "Status = 'In Progress'" in captured["soql"]
 
 
+def test_poll_excludes_outbound_by_default():
+    captured = {}
+
+    class Capturing(RecordedTransport):
+        def get_json(self, url, headers):
+            captured["soql"] = urllib.parse.unquote(url.split("?q=", 1)[1])
+            return super().get_json(url, headers)
+
+    transport = Capturing(query_map=[("FROM Task WHERE OwnerId", _load("task_poll.json"))])
+    SalesforceTaskSource(_client(transport)).poll(REP)
+    assert "NOT Subject LIKE '[lemlist]%'" in captured["soql"]
+    assert "NOT Subject LIKE '[slack - outbound]%'" in captured["soql"]
+
+
+def test_poll_includes_outbound_when_enabled():
+    captured = {}
+
+    class Capturing(RecordedTransport):
+        def get_json(self, url, headers):
+            captured["soql"] = urllib.parse.unquote(url.split("?q=", 1)[1])
+            return super().get_json(url, headers)
+
+    transport = Capturing(query_map=[("FROM Task WHERE OwnerId", _load("task_poll.json"))])
+    SalesforceTaskSource(_client(transport), include_outbound=True).poll(REP)
+    assert "NOT Subject LIKE" not in captured["soql"]
+
+
 def test_poll_applies_extra_where_filter():
     captured = {}
 
@@ -241,6 +268,33 @@ def test_custom_fields_appear_in_soql():
     assert "Trigger__c" in task_soql
     assert "Account.Name" in contact_soql
     assert "PostHog_Account_Id__c" in contact_soql
+
+
+def test_active_sequence_unmapped_defaults_false_and_mapped_field_in_soql():
+    captured = []
+
+    class Capturing(RecordedTransport):
+        def get_json(self, url, headers):
+            captured.append(urllib.parse.unquote(url.split("?q=", 1)[1]))
+            return super().get_json(url, headers)
+
+    # unmapped: no field queried, lead is not flagged in an active sequence
+    plain = RecordedTransport(query_map=[
+        ("FROM Task WHERE Id = '00T0004'", _load("task_plg.json")),
+        ("FROM Contact WHERE Id = '00C0004'", _load("contact_plg.json")),
+    ])
+    rec = _crm(plain).read("00T0004")
+    assert rec["lead"]["active_sequence"] is False
+
+    # mapped: the org's sequence field is added to the Contact query
+    field_map = SfFieldMap(active_sequence_contact_field="In_Active_Sequence__c")
+    transport = Capturing(query_map=[
+        ("FROM Task WHERE Id = '00T0004'", _load("task_plg.json")),
+        ("FROM Contact WHERE Id = '00C0004'", _load("contact_plg.json")),
+    ])
+    _crm(transport, field_map).read("00T0004")
+    contact_soql = next(s for s in captured if "FROM Contact" in s)
+    assert "In_Active_Sequence__c" in contact_soql
 
 
 def test_missing_task_raises():

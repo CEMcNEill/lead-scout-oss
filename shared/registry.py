@@ -50,8 +50,8 @@ class QualifierRegistry:
 
 
 def build_default_registry(rubric: str) -> QualifierRegistry:
-    """Assemble every registered qualifier: the inbound and onboarding handlers
-    plus the eleven product-led signal qualifiers and the product-led fallback.
+    """Assemble every registered qualifier: the inbound, onboarding, and outbound
+    handlers plus the product-led signal qualifiers and the product-led fallback.
     Assumes the conformance suite (run in CI / tests) has passed for each; see
     tests/test_conformance.py."""
     from qualifiers.big_fish.qualifier import BigFishQualifier
@@ -62,6 +62,7 @@ def build_default_registry(rubric: str) -> QualifierRegistry:
     from qualifiers.mrr_fit.qualifier import MrrFitQualifier
     from qualifiers.new_customer.qualifier import NewCustomerQualifier
     from qualifiers.onboarding.qualifier import OnboardingQualifier
+    from qualifiers.outbound.qualifier import OutboundQualifier
     from qualifiers.plg_unclassified.qualifier import PlgUnclassifiedQualifier
     from qualifiers.recent_fundraise.qualifier import RecentFundraiseQualifier
     from qualifiers.scale_activation.qualifier import ScaleActivationQualifier
@@ -74,6 +75,7 @@ def build_default_registry(rubric: str) -> QualifierRegistry:
     for qualifier in (
         InboundQualifier(rubric),
         OnboardingQualifier(rubric),
+        OutboundQualifier(rubric),
         BigFishQualifier(rubric),
         MrrFitQualifier(rubric),
         SpendSpikeQualifier(rubric),

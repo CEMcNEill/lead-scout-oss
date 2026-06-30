@@ -58,6 +58,7 @@ def _crm_and_usage(client):
         trigger_task_field=os.environ.get("SF_TRIGGER_TASK_FIELD") or None,
         trigger_contact_field=os.environ.get("SF_TRIGGER_CONTACT_FIELD") or None,
         account_ref_contact_field=os.environ.get("SF_ACCOUNT_REF_CONTACT_FIELD") or None,
+        active_sequence_contact_field=os.environ.get("SF_ACTIVE_SEQUENCE_CONTACT_FIELD") or None,
     )
     return SalesforceCrmFetcher(client, field_map=field_map), SalesforceUsageFetcher(client)
 
@@ -81,6 +82,8 @@ def poll_targets(client, ledger, rep_config) -> list[dict[str, Any]]:
         client,
         status=os.environ.get("SF_LEAD_TASK_STATUS", "Open"),
         extra_where=os.environ.get("SF_LEAD_TASK_FILTER") or None,
+        include_outbound=os.environ.get("SF_INCLUDE_OUTBOUND", "").strip().lower()
+        in ("1", "true", "yes"),
     )
     targets = []
     for task_id in source.poll(rep_config):

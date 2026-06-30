@@ -227,6 +227,46 @@ def prospect_cases(lead_type: str) -> list[ConformanceCase]:
     return [ConformanceCase(f"{lead_type}/call", _prospect_world(), "t_pro", model)]
 
 
+# --- outbound -------------------------------------------------------------
+
+
+def _outbound_world() -> World:
+    return World(
+        tasks={
+            "t_out": {
+                "task_id": "t_out",
+                "category": "outbound",
+                "lead": {"name": "Lee Park", "email": "lee@gamma.dev", "title": "CTO",
+                         "company": "Gamma", "domain": "gamma.dev",
+                         "lead_source": "lemlist", "active_sequence": False},
+            }
+        },
+        persons={"lee@gamma.dev": {"name": "Lee Park", "title": "CTO"}},
+        companies={"gamma.dev": {"industry": "devtools", "employees": 80}},
+        usage={},
+    )
+
+
+def outbound_cases() -> list[ConformanceCase]:
+    model = FakeModel({
+        "person_research.synthesis:lee@gamma.dev": json.dumps(
+            [{"field": "seniority", "value": "CTO", "raw_keys": ["title"], "confidence": 0.9}]),
+        "company_research.synthesis:gamma.dev": json.dumps(
+            [{"field": "segment", "value": "early-stage devtools", "raw_keys": ["industry"],
+              "confidence": 0.8}]),
+        "use_case_mapping.synthesis": json.dumps(
+            [{"use_case": "instrument their product as they scale", "product": "analytics",
+              "owner_persona": "CTO", "raw_keys": ["company"], "confidence": 0.75}]),
+        "outbound.judgment": json.dumps(
+            {"disposition": "call", "reasoning": "strong founder-led fit (c1)",
+             "confidence": 0.7, "claim_refs": ["c1"], "target_email": "lee@gamma.dev"}),
+        "drafter": json.dumps({"subject": "PostHog for Gamma",
+                               "body": "Saw Gamma is building devtools.", "claims_used": ["c1"]}),
+        "factcheck": _grounded_factcheck(),
+    })
+    return [ConformanceCase("outbound/call", _outbound_world(), "t_out", model)]
+
+
 # --- onboarding -----------------------------------------------------------
 
 
@@ -272,6 +312,7 @@ def all_cases() -> dict[str, list[ConformanceCase]]:
     cases: dict[str, list[ConformanceCase]] = {
         "inbound": inbound_cases(),
         "onboarding": onboarding_cases(),
+        "outbound": outbound_cases(),
     }
     for lt in ACCOUNT_FIRST_LEAD_TYPES:
         # startup_rolloff is agentic (Phase 1); the rest stay deterministic until

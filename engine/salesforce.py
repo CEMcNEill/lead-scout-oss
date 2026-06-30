@@ -186,11 +186,17 @@ class SalesforceTaskSource:
     actually considers leads (e.g. a Task Type or a custom field)."""
 
     def __init__(
-        self, client: QueryClient, *, status: str = "Open", extra_where: str | None = None
+        self,
+        client: QueryClient,
+        *,
+        status: str = "Open",
+        extra_where: str | None = None,
+        include_outbound: bool = False,
     ) -> None:
         self._client = client
         self._status = status
         self._extra_where = extra_where
+        self._include_outbound = include_outbound
 
     def poll(self, rep_config: RepConfig) -> list[str]:
         # only Status = 'Open' tasks: In Progress / Nurturing / Completed are
@@ -201,10 +207,13 @@ class SalesforceTaskSource:
             f"Status = '{_soql_escape(self._status)}'",
             "Who.Type = 'Contact'",
         ]
-        # outbound is rep/tool initiated; this engine never handles it, so exclude
-        # those tasks here rather than route them away later.
-        for tag in OUTBOUND_SUBJECT_TAGS:
-            clauses.append(f"(NOT Subject LIKE '[{_soql_escape(tag)}]%')")
+        # outbound is rep/tool initiated and already in an external lemlist/slack
+        # sequence; excluded by default so it never reaches routing. Opting in
+        # (SF_INCLUDE_OUTBOUND) lets the outbound qualifier stage a draft, guarded
+        # at the boundary by the active-sequence hard-stop.
+        if not self._include_outbound:
+            for tag in OUTBOUND_SUBJECT_TAGS:
+                clauses.append(f"(NOT Subject LIKE '[{_soql_escape(tag)}]%')")
         if self._extra_where:
             clauses.append(f"({self._extra_where})")
         soql = "SELECT Id FROM Task WHERE " + " AND ".join(clauses) + " ORDER BY CreatedDate ASC"
@@ -222,6 +231,10 @@ class SfFieldMap:
     trigger_task_field: str | None = None  # e.g. a custom "Trigger__c" on the Task
     trigger_contact_field: str | None = None  # e.g. a custom field on the Contact
     account_ref_contact_field: str | None = None  # else falls back to AccountId
+    # a checkbox/picklist marking the contact as still in a live outbound sequence
+    # (lemlist/slack). When set and truthy, the active-sequence hard-stop fires so
+    # the engine never stages a human touch into a running sequence.
+    active_sequence_contact_field: str | None = None
 
 
 # Contact fields (and the related Account) the CRM read pulls. Standard fields,
@@ -265,6 +278,8 @@ class SalesforceCrmFetcher:
                 contact_fields.append(self._map.trigger_contact_field)
             if self._map.account_ref_contact_field:
                 contact_fields.append(self._map.account_ref_contact_field)
+            if self._map.active_sequence_contact_field:
+                contact_fields.append(self._map.active_sequence_contact_field)
             contact_rows = self._select(
                 contact_fields, f"FROM Contact WHERE Id = '{_soql_escape(who_id)}'"
             )
@@ -307,6 +322,7 @@ class SalesforceCrmFetcher:
                     contact.get("DoNotCall") or contact.get("HasOptedOutOfEmail")
                 ),
                 "owner_other_rep": bool(owner_id and my_id and owner_id != my_id),
+                "active_sequence": self._resolve_active_sequence(contact),
             },
         }
         description = task.get("Description")
@@ -337,6 +353,10 @@ class SalesforceCrmFetcher:
             if category:
                 return category
         return None
+
+    def _resolve_active_sequence(self, contact: dict[str, Any]) -> bool:
+        field = self._map.active_sequence_contact_field
+        return bool(field and contact.get(field))
 
     def _resolve_account_ref(self, contact: dict[str, Any]) -> str | None:
         field = self._map.account_ref_contact_field

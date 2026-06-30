@@ -6,8 +6,9 @@
 #   - category: top-level, from Lead_Source__c / Subject tag / LeadSource
 #               (product-led | inbound | onboarding | outbound)
 #   - signal:   product-led sub-signal, from the closed matching_criteria set
-# Both normalizations live in shared/signals.py. Outbound is excluded at the poll,
-# so it never reaches the router.
+# Both normalizations live in shared/signals.py. Outbound is excluded at the poll
+# by default (SF_INCLUDE_OUTBOUND opts in); when included it routes to the outbound
+# qualifier below.
 #
 # Add a product-led signal by adding its row in shared/signals.py, a rule here,
 # and registering the qualifier; the shell is untouched.
@@ -127,6 +128,16 @@ rules:
       any:
         - {field: category, equals: onboarding}
         - {field: trigger, in: [onboarding, onboarding_assigned, new_customer]}
+
+  # --- outbound -----------------------------------------------------------
+  # rep/tool-initiated, in an external lemlist/slack sequence. Excluded at the
+  # poll unless SF_INCLUDE_OUTBOUND is set; when it reaches here it routes to the
+  # outbound qualifier (the active-sequence hard-stop guards live sequences).
+  - qualifier: outbound
+    lead_type: outbound
+    criteria:
+      all:
+        - {field: category, equals: outbound}
 
   # --- inbound ------------------------------------------------------------
   # someone reached out: an inbound category, or the task carries a message.
