@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from qualifiers.plg_base import AccountFirstQualifier
+from shared.agentic import AgenticQualifier
 
 
-class PlgUnclassifiedQualifier(AccountFirstQualifier):
+class PlgUnclassifiedQualifier(AgenticQualifier):
     name = "plg_unclassified"
     lead_type = "plg_unclassified"
     angle = "plg-use-case-led"

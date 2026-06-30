@@ -57,7 +57,9 @@ def _judgment(target_email: str) -> str:
 
 
 def _model() -> FakeModel:
-    return FakeModel({
+    from tests.fixtures.conformance_cases import AGENTIC_ACCOUNT_FIRST_TURNS
+
+    model = FakeModel({
         # research synthesis, per-entity step names
         "person_research.synthesis:sam@acme.com": _person("IC engineer"),
         "person_research.synthesis:dana@acme.com": _person("VP Engineering"),
@@ -82,6 +84,9 @@ def _model() -> FakeModel:
                                "claims_used": ["c1"]}),
         "factcheck": "[]",
     })
+    # big_fish is agentic (Phase 3): script its research loop.
+    model.set_tools("big_fish.agent", AGENTIC_ACCOUNT_FIRST_TURNS)
+    return model
 
 
 def _exemplar_bank() -> dict[str, list[str]]:

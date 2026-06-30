@@ -6,14 +6,15 @@ A paying product-led account that already clears the team's MRR and firmographic
 
 from __future__ import annotations
 
-from qualifiers.plg_base import AccountFirstQualifier
+from shared.agentic import AgenticQualifier
 
 
-class MrrFitQualifier(AccountFirstQualifier):
+class MrrFitQualifier(AgenticQualifier):
     name = "mrr_fit"
     lead_type = "mrr_fit"
     signal = "mrr_fit"
     angle = "plg-mrr-fit-led"
+    followup_cadence_days = [5, 9]
     judge_guidance = (
         "The account already fits; the question is the next tier. Weight expansion readiness "
         "and which persona owns the growing use case. "
