@@ -137,11 +137,16 @@ def test_judgment_agreement_records_but_no_disagreement(ledger, tmp_path):
 
 
 class FakeWriter:
-    def __init__(self):
+    def __init__(self, tasks=None):
         self.updates = []
+        self._tasks = tasks or {}  # task_id -> Task disposition fields (for query)
 
     def update_record(self, sobject, record_id, fields):
         self.updates.append({"sobject": sobject, "id": record_id, "fields": fields})
+
+    def query(self, soql):
+        # Ignore the SOQL text; return the canned Task rows the test supplied.
+        return [{"Id": tid, **fields} for tid, fields in self._tasks.items()]
 
 
 def _resolution_claim():
@@ -299,3 +304,85 @@ def test_ack_skips_replies_without_a_ts(ledger, tmp_path):
     assert result.runs_with_replies == 1
     assert slack.reactions == []
     assert result.acknowledgements == []  # no ts to dedup on, so no ack emitted
+
+
+# --- CRM (Salesforce) disposition signal ---------------------------------
+
+def test_crm_disqualify_recorded_as_disagreement(ledger, tmp_path):
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b", disp=DispositionKind.CALL))
+    writer = FakeWriter(tasks={"C": {
+        "Status": "Open", "Qualified__c": False, "Disqualified__c": True,
+        "Disqualification_Reason__c": "Competitor;No budget",
+        "Disqualification_Notes__c": "Direct PostHog competitor.",
+        "Self_Serve_No_Interaction__c": False,
+    }})
+    result = _slowloop_w(ledger, RecordedSlackClient(), tmp_path, writer).run_nightly("2026-06-30")
+    assert result.crm_dispositions == 1
+    assert len(result.disagreements) == 1
+    d = result.disagreements[0]
+    assert d.task_id == "C" and d.llm_disposition == "call" and d.human_disposition == "disqualify"
+    assert "Competitor" in d.human_rationale and "Direct PostHog competitor" in d.human_rationale
+    assert ledger.get("run_C").human_disposition == "disqualify"
+    assert result.rubric_proposal_path  # the disagreement drove a rubric proposal
+
+
+def test_crm_qualify_agrees_no_disagreement(ledger, tmp_path):
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b", disp=DispositionKind.CALL))
+    writer = FakeWriter(tasks={"C": {"Status": "Qualified", "Qualified__c": True,
+                                     "Disqualified__c": False}})
+    result = _slowloop_w(ledger, RecordedSlackClient(), tmp_path, writer).run_nightly("2026-06-30")
+    assert result.crm_dispositions == 1
+    assert result.disagreements == []  # engine call == rep qualified
+    assert ledger.get("run_C").human_disposition == "call"
+
+
+def test_crm_nurturing_status_maps_to_nurture(ledger, tmp_path):
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b", disp=DispositionKind.CALL))
+    writer = FakeWriter(tasks={"C": {"Status": "Nurturing"}})
+    result = _slowloop_w(ledger, RecordedSlackClient(), tmp_path, writer).run_updates_only("2026-06-30")
+    assert result.disagreements and result.disagreements[0].human_disposition == "nurture"
+
+
+def test_crm_in_progress_maps_to_call_agreement(ledger, tmp_path):
+    # rep moved the task to In Progress (working it) on an engine call: agreement
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b", disp=DispositionKind.CALL))
+    writer = FakeWriter(tasks={"C": {"Status": "In Progress"}})
+    result = _slowloop_w(ledger, RecordedSlackClient(), tmp_path, writer).run_updates_only("2026-06-30")
+    assert result.crm_dispositions == 1
+    assert result.disagreements == []  # call == call
+    assert ledger.get("run_C").human_disposition == "call"
+
+
+def test_crm_disposition_dedups_across_sweeps(ledger, tmp_path):
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b", disp=DispositionKind.CALL))
+    writer = FakeWriter(tasks={"C": {"Disqualified__c": True,
+                                     "Disqualification_Reason__c": "Competitor"}})
+    _slowloop_w(ledger, RecordedSlackClient(), tmp_path, writer).run_updates_only("2026-06-30")
+    result2 = _slowloop_w(ledger, RecordedSlackClient(), tmp_path, writer).run_updates_only("2026-06-30")
+    assert result2.crm_dispositions == 0  # unchanged Task is not re-counted
+    assert result2.disagreements == []
+
+
+def test_crm_skipped_without_query_client(ledger, tmp_path):
+    # _slowloop passes sf_writer=None: no query method, so the CRM read is skipped
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b", disp=DispositionKind.CALL))
+    result = _slowloop(ledger, RecordedGmailClient(), RecordedSlackClient(),
+                       tmp_path).run_updates_only("2026-06-30")
+    assert result.crm_dispositions == 0
+    assert result.disagreements == []
+
+
+def test_crm_overrides_slack_when_both_present(ledger, tmp_path):
+    # rep replied "self_serve" in Slack but later disqualified in SF: CRM wins
+    ledger.insert(_run("C", to="x@c.io", subject="s", body="b",
+                       disp=DispositionKind.CALL, thread="171000000.000001"))
+    slack = RecordedSlackClient(thread_messages={"171000000.000001": [
+        {"text": "card"}, {"text": "reasoning"},
+        {"text": "self serve", "ts": "171000000.000002"},
+    ]})
+    writer = FakeWriter(tasks={"C": {"Disqualified__c": True,
+                                     "Disqualification_Reason__c": "Competitor"}})
+    result = _slowloop_w(ledger, slack, tmp_path, writer).run_updates_only("2026-06-30")
+    assert len(result.disagreements) == 1
+    assert result.disagreements[0].human_disposition == "disqualify"
+    assert ledger.get("run_C").human_disposition == "disqualify"

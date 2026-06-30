@@ -30,6 +30,7 @@ from typing import Any
 
 from engine.gmail import GmailClient
 from engine.ledger import Ledger
+from engine.salesforce import _soql_escape
 from engine.slack import SlackClient, account_resolution
 from shared.contracts import Draft, LeadRun, RepConfig, RunStatus
 from shared.model import ModelClient, ModelTier, parse_json
@@ -56,6 +57,43 @@ def _ack_message(human: str | None, llm: str, is_disagreement: bool) -> str:
     if human:
         return f"{base} Confirmed: {llm.replace('_', ' ')}."
     return base
+
+
+# Salesforce Task fields the rep uses to disposition a lead directly in the CRM,
+# read as a judgment signal so learning does not depend on a Slack reply.
+_CRM_DISPO_FIELDS = [
+    "Id", "Status", "Qualified__c", "Disqualified__c",
+    "Disqualification_Reason__c", "Disqualification_Notes__c",
+    "Self_Serve_No_Interaction__c",
+]
+
+
+def _crm_disposition(task: dict[str, Any]) -> tuple[str | None, str]:
+    """Map a Task's disposition fields to (disposition, rationale). Returns
+    (None, "") when the rep has not dispositioned the task in Salesforce.
+
+    Precedence: an explicit disqualify or qualify flag wins over a status value,
+    since the rep set it deliberately. Confirmed with the rep 2026-06-30."""
+    status = task.get("Status") or ""
+    if task.get("Disqualified__c"):
+        reason = (task.get("Disqualification_Reason__c") or "").replace(";", ", ").strip()
+        notes = (task.get("Disqualification_Notes__c") or "").strip()
+        detail = " — ".join(p for p in (reason, notes) if p)
+        return "disqualify", (
+            f"Rep disqualified in Salesforce: {detail}" if detail
+            else "Rep disqualified in Salesforce."
+        )
+    if task.get("Qualified__c") or status == "Qualified":
+        return "call", "Rep marked the task Qualified in Salesforce."
+    if task.get("Self_Serve_No_Interaction__c"):
+        return "self_serve", "Rep marked the task Self Serve (no interaction) in Salesforce."
+    if status == "Nurturing":
+        return "nurture", "Rep set the task to Nurturing in Salesforce."
+    if status == "In Progress":
+        # The rep moved it off Open and is actively working it without disqualifying
+        # -- tacit agreement that it is worth a call.
+        return "call", "Rep is actively working the task in Salesforce (In Progress)."
+    return None, ""
 
 
 @dataclass
@@ -89,6 +127,7 @@ class SlowLoopResult:
     account_corrections: list[AccountCorrection] = field(default_factory=list)
     runs_with_sent: int = 0
     runs_with_replies: int = 0
+    crm_dispositions: int = 0  # rep dispositions read from Salesforce Task fields
     voice_proposal_path: str | None = None
     rubric_proposal_path: str | None = None
     # Per newly-processed rep reply: a threaded ack the caller posts back. The
@@ -146,7 +185,15 @@ class SlowLoop:
 
         if do_voice:
             result.voice_edits = self._collect_voice_signals(runs, result)
-        result.disagreements = self._collect_judgment_signals(runs, result)
+        # Judgment comes from two sources: the rep's Slack thread reply, and the
+        # rep dispositioning the Task directly in Salesforce (no reply needed). The
+        # CRM is authoritative, so when both fire for a task its disagreement wins.
+        slack_disagreements = self._collect_judgment_signals(runs, result)
+        crm_disagreements = self._collect_crm_dispositions(runs, result)
+        by_task = {d.task_id: d for d in slack_disagreements}
+        for d in crm_disagreements:
+            by_task[d.task_id] = d
+        result.disagreements = list(by_task.values())
         result.account_corrections = self._collect_account_corrections(runs)
 
         if do_proposals:
@@ -334,6 +381,49 @@ class SlowLoop:
                 react(channel, ts, _ACK_EMOJI)
             except Exception:  # noqa: BLE001 - acknowledgement must never break the apply
                 pass
+
+    # --- CRM disposition signal ------------------------------------------
+
+    def _collect_crm_dispositions(self, runs: list[LeadRun], result: SlowLoopResult):
+        """Read the rep's disposition straight off the Salesforce Task, so learning
+        does not wait on a Slack reply. Maps the Task's qualify/disqualify/status
+        fields to a disposition, records it on the run, and emits a disagreement
+        when it differs from the engine's call. Best-effort: a missing query client
+        or a failed read is skipped, never fatal. Deduped on the recorded
+        disposition so a stable Task is not re-counted every sweep."""
+        disagreements: list[Disagreement] = []
+        query = getattr(self._writer, "query", None)
+        if query is None:
+            return disagreements
+        by_id = {r.task_id: r for r in runs if r.disposition is not None and r.task_id}
+        if not by_id:
+            return disagreements
+        ids = "', '".join(_soql_escape(t) for t in by_id)
+        soql = f"SELECT {', '.join(_CRM_DISPO_FIELDS)} FROM Task WHERE Id IN ('{ids}')"
+        try:
+            rows = query(soql)
+        except Exception:  # noqa: BLE001 - CRM read is best-effort
+            return disagreements
+        for row in rows or []:
+            run = by_id.get(row.get("Id"))
+            if run is None:
+                continue
+            human, rationale = _crm_disposition(row)
+            if human is None or run.human_disposition == human:
+                continue  # not dispositioned in SF, or already recorded this call
+            run.human_disposition = human
+            run.human_rationale = rationale
+            self._ledger.update(run)
+            result.crm_dispositions += 1
+            llm = run.disposition.disposition.value
+            if human != llm:
+                disagreements.append(
+                    Disagreement(
+                        task_id=run.task_id, llm_disposition=llm,
+                        human_disposition=human, human_rationale=rationale,
+                    )
+                )
+        return disagreements
 
     # --- account-resolution corrections ---------------------------------
 

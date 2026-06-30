@@ -457,6 +457,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({
                 "voice_edits": len(result.voice_edits),
                 "disagreements": len(result.disagreements),
+                "crm_dispositions": result.crm_dispositions,
                 "account_corrections": len(result.account_corrections),
                 "voice_proposal": result.voice_proposal_path,
                 "rubric_proposal": result.rubric_proposal_path,
