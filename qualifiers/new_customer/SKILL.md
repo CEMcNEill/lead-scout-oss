@@ -9,5 +9,11 @@ Account-first. Read the CRM record, pull usage and the internal user roster, run
 ## How to judge
 The relationship is new; the goal is fast activation and an expansion path. Weight early activation breadth and the owner who can drive adoption.
 
+## How to draft
+Lead with a warm welcome and the fastest path to value for what they just bought, tied to a grounded activation signal. Offer concrete next steps (onboarding help, the products that fit their use case) and a person to talk to. Soft close; this is the start of the relationship.
+
+## How to follow up
+Two nudges (4 days, then 9), drafts only, shorter each time. Follow-up 1: a specific next activation step. Follow-up 2: a soft check-in offering help when they are ready. A reply stops the sequence.
+
 ## Notes
 The account is the unit. Outreach can correctly go to a different person than the named lead; the disposition records the chosen target and why.

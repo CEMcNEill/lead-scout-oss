@@ -315,10 +315,8 @@ def all_cases() -> dict[str, list[ConformanceCase]]:
         "outbound": outbound_cases(),
     }
     for lt in ACCOUNT_FIRST_LEAD_TYPES:
-        # startup_rolloff is agentic (Phase 1); the rest stay deterministic until
-        # Phase 3 migrates them.
-        cases[lt] = (agentic_account_first_cases(lt) if lt == "startup_rolloff"
-                     else account_first_cases(lt))
+        # the whole account-first family is agentic as of Phase 3.
+        cases[lt] = agentic_account_first_cases(lt)
     for lt in PROSPECT_LEAD_TYPES:
         cases[lt] = prospect_cases(lt)
     return cases

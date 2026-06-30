@@ -133,6 +133,10 @@ def test_plg_big_fish_targets_discovered_buyer_not_named_lead():
             {"subject": "PostHog at Acme", "body": "Your team is at ~6M events/mo.",
              "claims_used": ["c1"]}),
     })
+    # big_fish is agentic (Phase 3): the interior orchestrates the research tools.
+    from tests.fixtures.conformance_cases import AGENTIC_ACCOUNT_FIRST_TURNS
+
+    model.set_tools("big_fish.agent", AGENTIC_ACCOUNT_FIRST_TURNS)
     q = BigFishQualifier(RUBRIC)
     result = q.run("t2", world.tasks["t2"], _toolbox(world, model))
 

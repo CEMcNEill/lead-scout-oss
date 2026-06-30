@@ -9,5 +9,8 @@ Account-first. Read the CRM record, pull usage and the internal user roster, run
 ## How to judge
 The matching criteria did not map to a known signal. Treat it as a general product-led account: weight usage and fit holistically and target the right contact from the roster.
 
+## How to draft
+Lead with the clearest grounded use case in the dossier and the value PostHog adds there. Keep it general and helpful since the signal is unclassified. Anchor on a grounded fact; soft close with an offer to talk.
+
 ## Notes
 The account is the unit. Outreach can correctly go to a different person than the named lead; the disposition records the chosen target and why.

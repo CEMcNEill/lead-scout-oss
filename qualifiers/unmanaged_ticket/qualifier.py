@@ -6,14 +6,15 @@ A large customer (20k+) with no CSM who just raised a support ticket.
 
 from __future__ import annotations
 
-from qualifiers.plg_base import AccountFirstQualifier
+from shared.agentic import AgenticQualifier
 
 
-class UnmanagedTicketQualifier(AccountFirstQualifier):
+class UnmanagedTicketQualifier(AgenticQualifier):
     name = "unmanaged_ticket"
     lead_type = "unmanaged_ticket"
     signal = "unmanaged_ticket"
     angle = "plg-unmanaged-ticket-led"
+    followup_cadence_days = [4]
     judge_guidance = (
         "The ticket is an opening to offer hands-on help. Weight account size and the "
         "ticket's substance; target the person who can own the relationship. "

@@ -6,14 +6,15 @@ A large-headcount account (500+ or 1000+ employees) active on the free plan with
 
 from __future__ import annotations
 
-from qualifiers.plg_base import AccountFirstQualifier
+from shared.agentic import AgenticQualifier
 
 
-class BigFishQualifier(AccountFirstQualifier):
+class BigFishQualifier(AgenticQualifier):
     name = "big_fish"
     lead_type = "big_fish"
     signal = "big_fish"
     angle = "plg-big-fish-led"
+    followup_cadence_days = [5, 9]
     judge_guidance = (
         "A large company active on the free plan with no payment method. Weight account scale "
         "and breadth of usage over firmographic polish. Real usage plus a buyable persona is "
