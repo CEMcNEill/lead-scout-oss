@@ -162,6 +162,7 @@ def _parse_message(full: dict) -> GmailMessage:
         to=_header(headers, "To"),
         body=_decode_part(payload),
         date=_header(headers, "Date"),
+        from_addr=_header(headers, "From"),
     )
 
 
@@ -185,6 +186,10 @@ class GmailApiClient:
             full = self._http("GET", f"{_BASE}/messages/{m['id']}?format=full", None)
             out.append(_parse_message(full))
         return out
+
+    def get_thread(self, thread_id: str) -> list[GmailMessage]:
+        thread = self._http("GET", f"{_BASE}/threads/{thread_id}?format=full", None)
+        return [_parse_message(m) for m in thread.get("messages", [])]
 
 
 def build_gmail_token_provider_from_env() -> GoogleTokenProvider:

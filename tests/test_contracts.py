@@ -128,6 +128,18 @@ def test_lead_run_round_trip():
     assert back == run
 
 
+def test_lead_run_thread_id_round_trips_and_defaults_none():
+    run = _sample_run()
+    assert run.thread_id is None  # default
+    run.thread_id = "thread-abc"
+    back = LeadRun.from_dict(json.loads(json.dumps(run.to_dict())))
+    assert back.thread_id == "thread-abc"
+    # an old blob without the key still loads
+    blob = json.loads(json.dumps(run.to_dict()))
+    del blob["thread_id"]
+    assert LeadRun.from_dict(blob).thread_id is None
+
+
 def test_lead_run_defaults_round_trip():
     """A blocked run with no disposition/draft still round-trips."""
     run = LeadRun(
