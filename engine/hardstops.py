@@ -2,8 +2,9 @@
 shell runs before invoking a qualifier.
 
 Do-not-contact, a competitor, an account already managed by a teammate, a
-non-business/personal address. Rare, binary, decided off data. Everything that
-is not a hard-stop is evidence for the qualifier to weigh, not grounds to stop.
+non-business/personal address, or an outbound lead still in a live external
+sequence. Rare, binary, decided off data. Everything that is not a hard-stop is
+evidence for the qualifier to weigh, not grounds to stop.
 """
 
 from __future__ import annotations
@@ -57,6 +58,12 @@ def check_hard_stops(record: dict[str, Any], config: HardStopConfig) -> list[str
     found, other_rep = resolve_path(record, "lead.owner_other_rep")
     if found and other_rep:
         stops.append("teammate_managed")
+
+    # outbound leads already live in an external lemlist/slack sequence; never
+    # stage a parallel human touch into one that is still running.
+    found, in_seq = resolve_path(record, "lead.active_sequence")
+    if found and in_seq:
+        stops.append("active_sequence")
 
     if domain and domain in config.personal_email_domains:
         stops.append("personal_address")
