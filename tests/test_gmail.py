@@ -42,6 +42,20 @@ def test_find_sent_matches_recipient():
     assert client.find_sent("in:sent to:nobody@x.com") == []
 
 
+def test_recorded_get_thread_replays_messages_and_from_addr():
+    thread = [
+        GmailMessage("m1", "t1", "PostHog at Acme", "dana@acme.com", "first touch",
+                     "2026-06-01", from_addr="chris.m@posthog.com"),
+        GmailMessage("m2", "t1", "Re: PostHog at Acme", "chris.m@posthog.com",
+                     "interested", "2026-06-02", from_addr="dana@acme.com"),
+    ]
+    client = RecordedGmailClient(threads={"t1": thread})
+    msgs = client.get_thread("t1")
+    assert [m.id for m in msgs] == ["m1", "m2"]
+    assert msgs[1].from_addr == "dana@acme.com"
+    assert client.get_thread("unknown") == []
+
+
 def test_staging_sink_satisfies_shell(tmp_path):
     """GmailStagingSink drops into the shell exactly where FilesystemStagingSink did."""
     import json

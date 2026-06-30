@@ -256,6 +256,7 @@ def slow_run(ledger, data: dict[str, Any], *, client, model, rep_config, stamp,
                 id=m.get("id", ""), thread_id=m.get("thread_id", ""),
                 subject=m.get("subject", ""), to=m.get("to", recipient),
                 body=m.get("body", ""), date=m.get("date", ""),
+                from_addr=m.get("from", m.get("from_addr", "")),
             )
             for m in msgs
         ]

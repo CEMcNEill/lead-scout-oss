@@ -14,15 +14,19 @@ def _b64(s: str) -> str:
 
 
 class FakeGmailHttp:
-    def __init__(self, list_resp=None, messages=None):
+    def __init__(self, list_resp=None, messages=None, threads=None):
         self.calls = []
         self._list = list_resp or {"messages": []}
         self._messages = messages or {}
+        self._threads = threads or {}
 
     def __call__(self, method, url, body):
         self.calls.append((method, url, body))
         if method == "POST" and url.endswith("/drafts"):
             return {"id": "draft-123", "message": {"id": "msg-1"}}
+        if "/threads/" in url:
+            tid = url.split("/threads/")[1].split("?")[0]
+            return self._threads[tid]
         if "/messages/" in url:
             mid = url.split("/messages/")[1].split("?")[0]
             return self._messages[mid]
@@ -67,6 +71,42 @@ def test_find_sent_parses_messages():
     assert "edited and sent" in msgs[0].body
     # the query was scoped to sent
     assert "in%3Asent" in http.calls[0][1]
+
+
+def test_find_sent_parses_from_header():
+    http = FakeGmailHttp(
+        list_resp={"messages": [{"id": "m1"}]},
+        messages={"m1": {
+            "id": "m1", "threadId": "t1",
+            "payload": {
+                "headers": [
+                    {"name": "Subject", "value": "PostHog at Acme"},
+                    {"name": "From", "value": "Chris <chris.m@posthog.com>"},
+                    {"name": "To", "value": "dana@acme.com"},
+                ],
+                "body": {"data": _b64("hi")},
+            },
+        }},
+    )
+    msgs = GmailApiClient(http).find_sent("to:dana@acme.com")
+    assert msgs[0].from_addr == "Chris <chris.m@posthog.com>"
+
+
+def test_get_thread_parses_all_messages_oldest_first():
+    def msg(mid, frm, body):
+        return {"id": mid, "threadId": "t1", "payload": {
+            "headers": [{"name": "Subject", "value": "PostHog at Acme"},
+                        {"name": "From", "value": frm}],
+            "body": {"data": _b64(body)}}}
+
+    http = FakeGmailHttp(threads={"t1": {"messages": [
+        msg("m1", "chris.m@posthog.com", "first touch"),
+        msg("m2", "dana@acme.com", "thanks, interested"),
+    ]}})
+    msgs = GmailApiClient(http).get_thread("t1")
+    assert [m.id for m in msgs] == ["m1", "m2"]
+    assert msgs[1].from_addr == "dana@acme.com"
+    assert "interested" in msgs[1].body
 
 
 def test_find_sent_handles_multipart_body():

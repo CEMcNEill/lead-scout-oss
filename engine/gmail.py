@@ -29,6 +29,10 @@ class GmailMessage:
     to: str
     body: str
     date: str
+    # the From header. Needed by the follow-up loop to tell a target's reply from
+    # the rep's own send when reading a whole thread. Defaults empty for back-compat
+    # with older recorded fixtures.
+    from_addr: str = ""
 
 
 class GmailClient(Protocol):
@@ -38,6 +42,10 @@ class GmailClient(Protocol):
 
     def find_sent(self, query: str) -> list[GmailMessage]:
         """Sent messages matching a Gmail query (for the slow loop's draft_diff)."""
+        ...
+
+    def get_thread(self, thread_id: str) -> list[GmailMessage]:
+        """All messages in a thread, oldest first (for follow-up reply detection)."""
         ...
 
 
@@ -65,9 +73,14 @@ class RecordedGmailClient:
     """Records created drafts and replays recorded sent mail. Used in tests and to
     drive a live demo with the MCP results captured separately."""
 
-    def __init__(self, sent: dict[str, list[GmailMessage]] | None = None) -> None:
+    def __init__(
+        self,
+        sent: dict[str, list[GmailMessage]] | None = None,
+        threads: dict[str, list[GmailMessage]] | None = None,
+    ) -> None:
         self.created: list[dict] = []
         self._sent = sent or {}
+        self._threads = threads or {}
         self._counter = 0
 
     def create_draft(self, *, to: list[str], subject: str, body: str) -> str:
@@ -82,3 +95,6 @@ class RecordedGmailClient:
             if key in query:
                 return list(messages)
         return []
+
+    def get_thread(self, thread_id: str) -> list[GmailMessage]:
+        return list(self._threads.get(thread_id, []))

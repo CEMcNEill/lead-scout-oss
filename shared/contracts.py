@@ -428,6 +428,10 @@ class LeadRun:
     acked_reply_ts: str | None = None
     sent_draft: Draft | None = None
     draft_diff: str | None = None
+    # the Gmail thread the staged draft was sent into, learned when the slow loop
+    # matches the sent item. The follow-up loop reads this thread to detect a reply
+    # and stages each follow-up into it. None until a send is matched.
+    thread_id: str | None = None
     outcome: Outcome = field(default_factory=Outcome)
 
     # for runs that errored
@@ -458,6 +462,7 @@ class LeadRun:
             "acked_reply_ts": self.acked_reply_ts,
             "sent_draft": self.sent_draft.to_dict() if self.sent_draft else None,
             "draft_diff": self.draft_diff,
+            "thread_id": self.thread_id,
             "outcome": self.outcome.to_dict(),
             "error": self.error,
         }
@@ -488,6 +493,7 @@ class LeadRun:
             acked_reply_ts=d.get("acked_reply_ts"),
             sent_draft=Draft.from_dict(d["sent_draft"]) if d.get("sent_draft") else None,
             draft_diff=d.get("draft_diff"),
+            thread_id=d.get("thread_id"),
             outcome=Outcome.from_dict(d.get("outcome", {})),
             error=d.get("error"),
         )
