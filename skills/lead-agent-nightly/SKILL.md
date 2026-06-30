@@ -48,9 +48,15 @@ Run engine commands from the repo root with `uv run`. Write the data file under
           uv run python -m engine.agent_runtime slow-run \
             --data .agent-tmp/slow.json --no-voice
 
-   It prints how many disagreements and account corrections it found, and the path
-   of any rubric proposal. `--no-voice` leaves voice learning to the
-   voice-calibration skill (run that separately, see step 5).
+   It prints how many disagreements, CRM dispositions, and account corrections it
+   found, and the path of any rubric proposal. `--no-voice` leaves voice learning
+   to the voice-calibration skill (run that separately, see step 5).
+
+   Note: the engine also reads each lead's disposition straight off its Salesforce
+   Task (Qualified__c / Disqualified__c + Disqualification_Reason__c/Notes, or a
+   Status of Qualified / In Progress / Nurturing) as a judgment signal, so a lead
+   the rep dispositioned in the CRM is learned from even with no Slack reply. The
+   CRM read needs no data-file input; it happens automatically inside slow-run.
 
 4. Report the rubric/correction summary, and point the rep at any proposal file to
    review. Do not apply proposals; that is the rep's call.
