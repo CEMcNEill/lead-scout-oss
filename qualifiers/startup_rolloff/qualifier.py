@@ -6,10 +6,10 @@ A startup whose program credits are ending, with high credit spend (or >50% of c
 
 from __future__ import annotations
 
-from qualifiers.plg_base import AccountFirstQualifier
+from shared.agentic import AgenticQualifier
 
 
-class StartupRolloffQualifier(AccountFirstQualifier):
+class StartupRolloffQualifier(AgenticQualifier):
     name = "startup_rolloff"
     lead_type = "startup_rolloff"
     signal = "startup_rolloff"
