@@ -6,15 +6,15 @@ A product-led account whose engineering headcount is growing.
 
 from __future__ import annotations
 
-from qualifiers.plg_base import ProspectQualifier
+from shared.agentic import AgenticQualifier
 
 
-class EngHeadcountGrowthQualifier(ProspectQualifier):
+class EngHeadcountGrowthQualifier(AgenticQualifier):
     name = "eng_headcount_growth"
     lead_type = "eng_headcount_growth"
     signal = "eng_headcount_growth"
     angle = "eng-growth-led"
-    use_usage = True
+    followup_cadence_days = [6, 12]
     judge_guidance = (
         "Growth implies new tooling and collaboration needs. Usage may be thin; weight the "
         "growth signal and company fit, and lead with what a scaling engineering team needs. "

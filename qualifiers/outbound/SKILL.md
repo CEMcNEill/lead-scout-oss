@@ -39,5 +39,5 @@ brief "happy to close this out if the timing is off" check-in. Do not rehash the
 automated sequence or guilt-trip about silence; a reply stops the sequence.
 
 ## Notes
-The named person is the unit here, unlike the account-first plays. Phase 3 will make
-this qualifier agentic; today it runs the deterministic prospect flow.
+The named person is the unit here, unlike the account-first plays. Agentic: the
+interior orchestrates the research tools and runs this charter.

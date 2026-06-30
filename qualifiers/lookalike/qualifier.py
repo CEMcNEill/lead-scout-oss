@@ -9,15 +9,15 @@ account resolves, its real usage is folded in and weighed.
 
 from __future__ import annotations
 
-from qualifiers.plg_base import ProspectQualifier
+from shared.agentic import AgenticQualifier
 
 
-class LookalikeQualifier(ProspectQualifier):
+class LookalikeQualifier(AgenticQualifier):
     name = "lookalike"
     lead_type = "lookalike"
     signal = "lookalike"
     angle = "lookalike-fit-led"
-    use_usage = True  # a lookalike may already be an active account; use real usage
+    followup_cadence_days = [7]
     judge_guidance = (
         "A lookalike is sourced by resemblance to good accounts, not by usage, so it "
         "usually has none. If the dossier carries no PostHog usage, analyze the company "
