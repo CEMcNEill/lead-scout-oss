@@ -31,8 +31,8 @@ def test_policy_tier_mapping():
 
 def test_cost_usd_known_and_unknown_model():
     policy = ModelPolicy()
-    # opus: 15 in / 75 out per Mtok
-    assert policy.cost_usd("claude-opus-4-8", 1_000_000, 1_000_000) == 90.0
+    # opus 4.8: 5 in / 25 out per Mtok
+    assert policy.cost_usd("claude-opus-4-8", 1_000_000, 1_000_000) == 30.0
     # unknown model meters at zero
     assert policy.cost_usd("mystery", 1_000_000, 1_000_000) == 0.0
 

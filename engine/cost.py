@@ -43,11 +43,15 @@ _DEFAULT_TIERS: dict[str, str] = {
     ModelTier.QUALIFIER_JUDGMENT: "claude-opus-4-8",
     ModelTier.DRAFTER: "claude-opus-4-8",
     ModelTier.LEARNING: "claude-opus-4-8",
+    # The agentic loop's tool-selection runs on Sonnet; the authoritative judge +
+    # draft stay Opus, so per-lead Opus calls stay at exactly 2 (no Opus delta).
+    ModelTier.AGENT_ORCHESTRATION: "claude-sonnet-4-6",
 }
 
 # Known public price points (USD / Mtok). Editable; the source of truth for cost.
+# Opus 4.8 is $5/$25 per Mtok (verified against the claude-api reference).
 _DEFAULT_PRICING: dict[str, Pricing] = {
-    "claude-opus-4-8": Pricing(15.0, 75.0),
+    "claude-opus-4-8": Pricing(5.0, 25.0),
     "claude-sonnet-4-6": Pricing(3.0, 15.0),
     "claude-haiku-4-5-20251001": Pricing(0.80, 4.0),
 }
@@ -138,6 +142,25 @@ class MeteredModel:
                 f"run cost {self._cost.total_usd} exceeded per-run cap {self._cap}"
             )
         return resp
+
+    def run_turn(self, *, system, messages, tools, tier, step, max_tokens=4096,
+                 tool_choice=None):
+        """Meter an agentic tool-use turn exactly like complete(): one CostEntry,
+        enforce the per-run cap. This is what halts a runaway loop mid-flight."""
+        turn = self._inner.run_turn(
+            system=system, messages=messages, tools=tools, tier=tier, step=step,
+            max_tokens=max_tokens, tool_choice=tool_choice,
+        )
+        usd = self._policy.cost_usd(turn.model, turn.tokens_in, turn.tokens_out)
+        self._cost.add(
+            CostEntry(step=step, kind="model", detail=turn.model,
+                      tokens_in=turn.tokens_in, tokens_out=turn.tokens_out, usd=usd)
+        )
+        if self._cap is not None and self._cost.total_usd > self._cap:
+            raise PerRunBudgetExceeded(
+                f"run cost {self._cost.total_usd} exceeded per-run cap {self._cap}"
+            )
+        return turn
 
 
 def record_tool_cost(cost: Cost, *, step: str, provider: str, usd: float) -> None:
