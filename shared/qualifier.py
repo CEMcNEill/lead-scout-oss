@@ -61,6 +61,12 @@ class BaseQualifier:
     # rubric is the bar; this says how to weigh the dossier for this lead type
     # (e.g. a lookalike has no usage, so judge sales-led potential, not activity).
     judge_guidance: str = ""
+    # signal-specific drafting guidance handed to the drafter for this lead type:
+    # the playbook for what a good email of this kind leads with and offers (e.g. a
+    # startup roll-off leads with the savings/discount opportunity, not just "your
+    # credits are ending"). Frames structure only; the fact-check gate still governs
+    # every claim.
+    draft_guidance: str = ""
 
     def __init__(self, rubric: str) -> None:
         self.rubric = rubric
@@ -89,7 +95,9 @@ class BaseQualifier:
         disposition = self.judge(dossier, candidates, tools)
         draft: Draft | None = None
         if disposition.disposition == DispositionKind.CALL:
-            draft = tools.drafter.draft(dossier, disposition, self.angle)
+            draft = tools.drafter.draft(
+                dossier, disposition, self.angle, guidance=self.draft_guidance
+            )
         return RunResult(dossier=dossier, disposition=disposition, draft=draft)
 
     def judge(

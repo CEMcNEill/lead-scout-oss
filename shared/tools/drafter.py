@@ -65,8 +65,11 @@ class DrafterTool:
         self._signature = signature
         self._calendar_url = calendar_url.strip()
 
-    def draft(self, dossier: list[Claim], disposition: Disposition, angle: str) -> Draft:
-        prompt = self._build_prompt(dossier, disposition, angle)
+    def draft(
+        self, dossier: list[Claim], disposition: Disposition, angle: str,
+        guidance: str = "",
+    ) -> Draft:
+        prompt = self._build_prompt(dossier, disposition, angle, guidance)
         resp = self._model.complete(
             system=_SYSTEM,
             prompt=prompt,
@@ -101,7 +104,8 @@ class DrafterTool:
         return pattern.sub(self._calendar_url, body)
 
     def _build_prompt(
-        self, dossier: list[Claim], disposition: Disposition, angle: str
+        self, dossier: list[Claim], disposition: Disposition, angle: str,
+        guidance: str = "",
     ) -> str:
         exemplar_block = (
             "\n\n---\n\n".join(self._exemplars) if self._exemplars else "(none yet)"
@@ -128,11 +132,18 @@ class DrafterTool:
             if self._calendar_url
             else "Rep booking link: none configured; do not include a scheduling link."
         )
+        guidance_block = (
+            f"Play-specific drafting guidance (what a strong email of this kind leads "
+            f"with and offers - follow it, but assert only what the dossier "
+            f"grounds):\n{guidance}\n\n"
+            if guidance else ""
+        )
         return (
             f"Voice rules:\n{self._voice_profile}\n\n"
             f"{booking}\n\n"
             f"Exemplar sends (match this cadence):\n{exemplar_block}\n\n"
             f"Framing angle: {angle}\n\n"
+            f"{guidance_block}"
             f"{name_note}"
             f"Target contact: {json.dumps(target)}\n\n"
             f"Disposition: {json.dumps(disp_dict)}\n\n"
