@@ -317,50 +317,56 @@ class SlowLoop:
     # --- follow-up state -------------------------------------------------
 
     def _collect_followup_state(self, runs: list[LeadRun], result: SlowLoopResult) -> None:
-        """Detect each call's first send, whether the target replied, and when the
-        next follow-up is due. Stages nothing -- that is the followups command's job
-        (Phase 2c). Fail closed: a touch is scheduled only when a real send was
-        matched, the thread was readable, and no reply was seen."""
+        """For each call, learn how many touches the rep has actually sent (from the
+        thread), whether the target replied, and when the next touch is due. Stages
+        nothing -- that is the followups command's job (Phase 2c). Counting sends from
+        the thread (not from staged touches) is what lets the sequence advance past
+        touch 1. Fail closed: a touch is scheduled only when the thread was readable,
+        at least one send is present, and no reply was seen."""
         for run in runs:
             if run.status != RunStatus.STAGED_FOR_REVIEW or run.staged_draft is None:
                 continue
             if run.disposition is None or run.disposition.disposition != DispositionKind.CALL:
                 continue  # only call dispositions get a sequence
-            sent = self._match_sent(run.staged_draft)
-            if sent is None:
-                continue  # not sent yet -> nothing due (next_touch_due stays None)
-            sent_dt = _parse_email_date(sent.date)
-            run.thread_id = sent.thread_id or run.thread_id
-            self._record_touch1(run, sent, sent_dt)
-            replied = self._detect_reply(run, sent_dt)
-            if replied is not None:
-                run.outcome.replied = replied
-                if replied:
-                    result.replies_detected += 1
-            run.next_touch_due = self._compute_due(run, sent_dt)
+            thread = self._read_thread(run)
+            if thread is None:
+                continue  # not sent yet, or thread unreadable -> leave due as is
+            rep_msgs = [m for m in thread if _addr_matches(m.from_addr, self._rep.gmail_account)]
+            if not rep_msgs:
+                continue  # nothing sent yet
+            dates = [d for d in (_parse_email_date(m.date) for m in rep_msgs) if d]
+            first_sent = min(dates) if dates else None
+            last_sent = max(dates) if dates else None
+            run.outcome.replied = self._thread_has_reply(thread, run, first_sent)
+            if run.outcome.replied:
+                result.replies_detected += 1
+            self._sync_touch_sends(run, rep_msgs)
+            # a follow-up already drafted but not yet sent pauses the cadence: wait
+            # for the rep to send it before arming the next one.
+            pending = any(t.staged_at and not t.sent_at for t in run.touches)
+            run.next_touch_due = (
+                None if pending else self._compute_due(run, last_sent, len(rep_msgs))
+            )
             if run.next_touch_due:
                 result.followups_scheduled += 1
             self._ledger.update(run)
 
-    def _record_touch1(self, run: LeadRun, sent: GmailMessage, sent_dt) -> None:
-        """Ensure touch 1 exists and reflects the matched send. Idempotent."""
-        iso = sent_dt.isoformat() if sent_dt else None
-        existing = next((t for t in run.touches if t.n == 1), None)
-        if existing is None:
-            run.touches.insert(0, Touch(
-                n=1, subject=run.staged_draft.subject, body=run.staged_draft.body,
-                staged_at=run.ts, sent_at=iso, draft_ref=run.staged_draft_ref))
-        else:
-            existing.sent_at = iso or existing.sent_at
-
-    def _detect_reply(self, run: LeadRun, after_dt) -> bool | None:
-        """True/False when the thread is readable; None when it cannot be read
-        (unknown). A reply is any non-rep, non-auto message after our send."""
+    def _read_thread(self, run: LeadRun) -> list[GmailMessage] | None:
+        """The thread's messages, or None when none can be established. Bootstraps
+        thread_id from the first matched send the first time through."""
         if not run.thread_id:
-            return None
+            sent = self._match_sent(run.staged_draft)
+            if sent is None:
+                return None  # not sent yet
+            run.thread_id = sent.thread_id or None
+            if not run.thread_id:
+                return [sent]  # a send with no thread id -> single-message thread
         thread = self._gmail.get_thread(run.thread_id)
-        if not thread:
-            return None
+        return thread or None
+
+    def _thread_has_reply(self, thread, run: LeadRun, after_dt) -> bool:
+        """A reply is any non-rep, non-auto message after our first send. Auto-reply/
+        OOO and the rep's own messages do not count."""
         target = (run.staged_draft.to or "").lower()
         replied = False
         for m in thread:
@@ -370,21 +376,35 @@ class SlowLoop:
                 continue
             mdt = _parse_email_date(m.date)
             if after_dt is not None and mdt is not None and mdt <= after_dt:
-                continue  # predates our send
+                continue  # predates our first send
             if target and target in (m.from_addr or "").lower():
                 return True
             replied = True
         return replied
 
-    def _compute_due(self, run: LeadRun, last_sent_dt) -> str | None:
+    def _sync_touch_sends(self, run: LeadRun, rep_msgs: list[GmailMessage]) -> None:
+        """Ensure touch 1 exists and stamp sent_at on the touches in send order."""
+        if not any(t.n == 1 for t in run.touches):
+            run.touches.insert(0, Touch(
+                n=1, subject=run.staged_draft.subject, body=run.staged_draft.body,
+                staged_at=run.ts, draft_ref=run.staged_draft_ref))
+        ordered = sorted(run.touches, key=lambda t: t.n)
+        epoch = dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+        rep_sorted = sorted(rep_msgs, key=lambda m: _parse_email_date(m.date) or epoch)
+        for touch, msg in zip(ordered, rep_sorted):
+            mdt = _parse_email_date(msg.date)
+            if mdt is not None:
+                touch.sent_at = mdt.isoformat()
+
+    def _compute_due(self, run: LeadRun, last_sent_dt, sent_count: int) -> str | None:
         """Next-touch time, or None. Scheduled only when we confirmed no reply
-        (outcome.replied is False), the send time is known, and touches remain."""
+        (outcome.replied is False), the last send time is known, and touches remain.
+        sent_count is the number of sends already in the thread."""
         if run.outcome.replied is not False:
             return None  # replied, or reply state unknown -> do not schedule
         if last_sent_dt is None:
             return None  # unparseable send time -> fail closed
         cadence = self._cadence.get(run.route.lead_type, [])
-        sent_count = sum(1 for t in run.touches if t.sent_at)
         if sent_count < 1 or sent_count > len(cadence):
             return None  # single-touch play, or sequence already complete
         due = last_sent_dt + dt.timedelta(days=cadence[sent_count - 1])

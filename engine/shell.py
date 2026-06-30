@@ -35,7 +35,7 @@ from engine.providers import (
     ToolProvider,
 )
 from engine.router import Router
-from shared.contracts import LeadRun, RepConfig, RunStatus, TriggerMeta
+from shared.contracts import LeadRun, RepConfig, RunStatus, Touch, TriggerMeta
 from shared.model import ModelClient
 from shared.registry import QualifierRegistry
 from shared.tools.toolbox import build_toolbox
@@ -141,6 +141,61 @@ class Shell:
 
         run.slack_thread_ref = self.notifier.notify(run, rep_config)
         self._persist(run)
+        return run
+
+    def process_followup(self, run: LeadRun, rep_config: RepConfig) -> LeadRun:
+        """Stage the next touch in a lead's sequence. The same boundary as
+        process_lead_run, minus routing/research: governor -> qualifier.follow_up
+        (reuses the run's dossier + disposition) -> the same fact-check gate -> stage
+        into the thread -> append a Touch -> pause the sequence until the rep sends
+        it. Drafts only; nothing is sent. The follow-up poll calls this only for runs
+        the slow loop has marked due (not replied to)."""
+        qualifier = self.registry.get(run.route.qualifier)
+        sent = [t for t in run.touches if t.sent_at]
+        pending = [t for t in run.touches if t.staged_at and not t.sent_at]
+        if pending:
+            return run  # a follow-up is already staged, waiting to be sent
+        touch_number = len(sent) + 1
+        if touch_number > qualifier.max_touches:
+            run.next_touch_due = None  # sequence complete
+            self.ledger.update(run)
+            return run
+
+        budget = self.governor.begin(self.inner_model)
+        try:
+            crm_fetcher, person_fetcher, company_fetcher, usage_fetcher = (
+                self.tool_provider.fetchers(rep_config)
+            )
+            voice_text, _ = self.tool_provider.voice(rep_config)
+            exemplars = self.tool_provider.exemplars(rep_config, run.route.lead_type)
+            toolbox = build_toolbox(
+                crm_fetcher=crm_fetcher, person_fetcher=person_fetcher,
+                company_fetcher=company_fetcher, usage_fetcher=usage_fetcher,
+                model=budget.model, voice_profile=voice_text, exemplars=exemplars,
+                signature=rep_config.signature, calendar_url=rep_config.calendar_url,
+            )
+            draft = qualifier.follow_up(run, touch_number, toolbox)
+            if draft is not None:
+                fc = factcheck(draft, run.dossier, budget.model)
+                if not fc.passed:
+                    run.factcheck_flags = [a.text for a in fc.ungrounded]
+                    draft = None
+            if draft is not None:
+                ref = self.staging_sink.stage(run.id, rep_config, draft)
+                run.touches.append(Touch(
+                    n=touch_number, subject=draft.subject, body=draft.body,
+                    staged_at=self.clock.now(), draft_ref=ref,
+                ))
+                run.staged_draft = draft
+                run.staged_draft_ref = ref
+            # pause the sequence: it re-arms when the slow loop sees this touch sent
+            run.next_touch_due = None
+        except PerRunBudgetExceeded as exc:
+            run.error = str(exc)
+        finally:
+            self.governor.end(budget)
+        run.cost.entries.extend(budget.cost.entries)
+        self.ledger.update(run)
         return run
 
     def _persist(self, run: LeadRun) -> None:

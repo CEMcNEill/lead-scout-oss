@@ -31,6 +31,13 @@ Order:
 Plain and low-pressure. The fact-check gate still governs every claim, and nothing
 is ever sent: this stages a draft for review.
 
+## How to follow up
+Two light nudges (3 days, then 6) on the same thread, drafts only, each shorter than
+the last. Follow-up 1: a one-liner adding a single fresh, grounded hook (a use case
+their stack suggests, a relevant PostHog feature) and an easy out. Follow-up 2: a
+brief "happy to close this out if the timing is off" check-in. Do not rehash the
+automated sequence or guilt-trip about silence; a reply stops the sequence.
+
 ## Notes
 The named person is the unit here, unlike the account-first plays. Phase 3 will make
 this qualifier agentic; today it runs the deterministic prospect flow.

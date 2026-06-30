@@ -54,6 +54,9 @@ class AgenticQualifier(BaseQualifier):
         # SKILL.md sections become the source of truth for guidance.
         self.judge_guidance = self._charter.sections.get("how to judge") or self.judge_guidance
         self.draft_guidance = self._charter.sections.get("how to draft") or self.draft_guidance
+        self.followup_guidance = (
+            self._charter.sections.get("how to follow up") or self.followup_guidance
+        )
 
     def _system(self) -> str:
         return (self._charter.raw or f"You handle {self.lead_type} leads.") + _CONTRACT

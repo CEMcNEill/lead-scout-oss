@@ -238,6 +238,66 @@ def slow_targets(ledger, rep_config) -> list[dict[str, Any]]:
     return targets
 
 
+# --- follow-up poll -------------------------------------------------------
+
+
+def followup_targets(ledger, rep_config) -> list[dict[str, Any]]:
+    """What the follow-up poll must fetch: for each staged call, the Gmail thread to
+    re-read so the loop can detect a reply and re-arm the cadence. Recipient +
+    subject let the skill locate the thread when thread_id isn't known yet."""
+    from shared.contracts import DispositionKind, RunStatus
+
+    targets = []
+    for run in ledger.list_runs(rep_id=rep_config.rep_id):
+        if run.status != RunStatus.STAGED_FOR_REVIEW or run.staged_draft is None:
+            continue
+        if run.disposition is None or run.disposition.disposition != DispositionKind.CALL:
+            continue
+        targets.append({
+            "task_id": run.task_id,
+            "draft_to": run.staged_draft.to,
+            "draft_subject": run.staged_draft.subject,
+            "thread_id": run.thread_id,
+        })
+    return targets
+
+
+def followups(ledger, data, *, client, model, rep_config, stamp, now_iso,
+              repo_root: Path = REPO_ROOT):
+    """Run the follow-up poll. First refresh reply/due state from the fetched Gmail
+    threads (the Phase 2b update pass), then stage a drafts-only follow-up for every
+    run now due. `data` = the same shape as slow-run plus `gmail_threads`
+    {thread_id: [msg...]}. Drafts only; a reply detected at refresh time suppresses
+    the touch (fail closed)."""
+    from engine.clay import ClayCompanyFetcher, ClayPersonFetcher
+    from engine.service import assemble_shell
+
+    # 1. refresh thread_id / replied / next_touch_due from the fetched threads
+    slow_run(ledger, data, client=client, model=model, rep_config=rep_config,
+             stamp=stamp, updates_only=True, repo_root=repo_root)
+
+    # 2. stage a follow-up for every run now due (and not replied to)
+    due = ledger.runs_due_for_followup(now_iso, rep_id=rep_config.rep_id)
+    summaries: list[dict[str, Any]] = []
+    if due:
+        crm, usage = _crm_and_usage(client)
+        caller = RecordedClayCaller()  # follow-up reuses the dossier; no new research
+        provider = CompositeToolProvider(
+            crm_fetcher=crm, person_fetcher=ClayPersonFetcher(caller),
+            company_fetcher=ClayCompanyFetcher(caller), usage_fetcher=usage,
+            voice_profile=voice_profile_path(repo_root).read_text(),
+            exemplar_bank=_load_exemplar_bank(repo_root / "config" / "exemplars.json"),
+        )
+        shell = assemble_shell(
+            ledger=ledger, inner_model=model, tool_provider=provider,
+            staging_sink=NullStagingSink(), notifier=NullNotifier(),
+        )
+        for run in due:
+            summaries.append(_run_summary(shell.process_followup(run, rep_config)))
+    return {"due": len(due), "staged": sum(1 for s in summaries if s["draft"]),
+            "runs": summaries}
+
+
 def slow_run(ledger, data: dict[str, Any], *, client, model, rep_config, stamp,
              updates_only: bool = False, no_voice: bool = False,
              repo_root: Path = REPO_ROOT):
@@ -437,6 +497,11 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--task", required=True)
     t.add_argument("--ts", required=True)
     sub.add_parser("slow-targets")
+    sub.add_parser("followup-targets")
+    fu = sub.add_parser("followups")
+    fu.add_argument("--data", required=True,
+                    help="JSON with sent/threads/gmail_threads to refresh reply state")
+    fu.add_argument("--now", help="ISO timestamp to evaluate due-ness (default: now UTC)")
     sub.add_parser("voice-corpus")
     sr = sub.add_parser("slow-run")
     sr.add_argument("--data", required=True)
@@ -470,6 +535,19 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"ok": True}))
         elif args.cmd == "slow-targets":
             print(json.dumps(slow_targets(ledger, default_rep_config()), indent=2))
+        elif args.cmd == "followup-targets":
+            print(json.dumps(followup_targets(ledger, default_rep_config()), indent=2))
+        elif args.cmd == "followups":
+            import datetime as _dt
+
+            data = json.loads(Path(args.data).read_text())
+            now_iso = args.now or _dt.datetime.now(_dt.timezone.utc).isoformat()
+            result = followups(
+                ledger, data, client=build_sf_client(),
+                model=AnthropicModel(ModelPolicy()), rep_config=default_rep_config(),
+                stamp=_dt.datetime.now().strftime("%Y-%m-%d"), now_iso=now_iso,
+            )
+            print(json.dumps(result, indent=2))
         elif args.cmd == "voice-corpus":
             print(json.dumps(voice_corpus(ledger, default_rep_config()), indent=2))
         elif args.cmd == "slow-run":

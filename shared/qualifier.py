@@ -21,6 +21,7 @@ from shared.contracts import (
     Disposition,
     DispositionKind,
     Draft,
+    LeadRun,
     RunResult,
     Target,
 )
@@ -71,6 +72,15 @@ class BaseQualifier:
     # [] means single-touch (no follow-up). [4, 7] = follow up 4 days after the
     # first send, then 7 days after the second. len(cadence)+1 = max touches.
     followup_cadence_days: list[int] = []
+    # how a follow-up of this lead type should read (shorter, a fresh angle, an easy
+    # out). Charters override it via the SKILL "How to follow up" section; this is
+    # the fallback. The fact-check gate still governs every claim a follow-up makes.
+    followup_guidance: str = (
+        "A brief, friendly nudge on the same thread, not a resend. Keep it shorter "
+        "than the first touch, add one fresh angle or a lighter ask, do not repeat "
+        "the earlier message, and make it easy to say no. Assert only what the "
+        "dossier grounds."
+    )
 
     def __init__(self, rubric: str) -> None:
         self.rubric = rubric
@@ -107,6 +117,40 @@ class BaseQualifier:
                 dossier, disposition, self.angle, guidance=self.draft_guidance
             )
         return RunResult(dossier=dossier, disposition=disposition, draft=draft)
+
+    def follow_up(self, run: LeadRun, touch_number: int, tools: Toolbox) -> Draft | None:
+        """Draft the next touch in the sequence. Reuses the run's dossier and
+        disposition -- no new research, no new judgment, just one drafter call -- so
+        a follow-up costs one Opus draft + one fact-check. Threads onto touch 1 with
+        a Re: subject and references prior touches so it reads as a nudge, not a
+        resend. Returns None when the run is not a live call. The boundary fact-check
+        gate still governs the draft; nothing is ever sent."""
+        if run.disposition is None or run.disposition.disposition != DispositionKind.CALL:
+            return None
+        ordered = sorted(run.touches, key=lambda t: t.n)
+        prior = [t.body for t in ordered if t.body]
+        guidance = self._followup_guidance_text(touch_number, prior)
+        draft = tools.drafter.draft(
+            run.dossier, run.disposition, f"{self.angle}-followup", guidance=guidance
+        )
+        first_subject = ordered[0].subject if ordered else draft.subject
+        subject = (
+            first_subject if first_subject.lower().startswith("re:")
+            else f"Re: {first_subject}"
+        )
+        return Draft(to=draft.to, subject=subject, body=draft.body,
+                     angle=draft.angle, claims_used=draft.claims_used)
+
+    def _followup_guidance_text(self, touch_number: int, prior_bodies: list[str]) -> str:
+        import json as _json
+
+        blocks = "\n\n---\n\n".join(prior_bodies) if prior_bodies else "(none)"
+        return (
+            f"{self.followup_guidance}\n\n"
+            f"This is follow-up #{touch_number} on an existing thread. The "
+            f"message(s) already sent (do NOT repeat them):\n{blocks}\n\n"
+            f"(touch_number={_json.dumps(touch_number)})"
+        )
 
     def judge(
         self,
