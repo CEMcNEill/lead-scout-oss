@@ -51,13 +51,19 @@ Run all engine commands from the repo root with `uv run`. Write Clay JSON under
             --clay-contact .agent-tmp/<task_id>.contact.json
 
       This prints `{status, disposition, draft}`. The run is already written to
-      the ledger. If `draft` is null (disposition was not "call", or it was
-      blocked), skip to step (f) to still post the review card.
+      the ledger. If `draft` is null (disposition was not "call", or the engine
+      withheld it on a fact-check or hard stop), DO NOT create a Gmail draft: skip
+      to step (f) and render the card with no `--draft-url`. The `card` command
+      rejects a draft URL on a withheld lead, so never create one anyway.
 
-   d. If `draft` is present, create a Gmail draft via the Gmail MCP `create_draft`
-      with `to = [draft.to]`, `subject = draft.subject`, `body = draft.body`.
-      Take the returned draft id and form the URL
-      `https://mail.google.com/mail/u/0/#drafts?compose=<id>`.
+   d. If `draft` is present, first dedup: search the Gmail MCP for an existing draft
+      to this recipient with this subject (`is:draft to:<draft.to> subject:<...>`).
+      If one already exists from a prior sweep, REUSE its id rather than creating a
+      second. Otherwise create one via `create_draft` with `to = [draft.to]`,
+      `subject = draft.subject`, `body = draft.body`. Either way, take the draft id
+      that the MCP actually returned and form the URL
+      `https://mail.google.com/mail/u/0/#drafts?compose=<id>`. Never construct or
+      guess a URL: only pass a URL whose draft you created or found this run.
 
    e. (Skip if no draft.)
 
