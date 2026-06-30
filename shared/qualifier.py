@@ -67,9 +67,17 @@ class BaseQualifier:
     # credits are ending"). Frames structure only; the fact-check gate still governs
     # every claim.
     draft_guidance: str = ""
+    # follow-up cadence: days to wait after each send before the next touch is due.
+    # [] means single-touch (no follow-up). [4, 7] = follow up 4 days after the
+    # first send, then 7 days after the second. len(cadence)+1 = max touches.
+    followup_cadence_days: list[int] = []
 
     def __init__(self, rubric: str) -> None:
         self.rubric = rubric
+
+    @property
+    def max_touches(self) -> int:
+        return len(self.followup_cadence_days) + 1
 
     # --- to override -----------------------------------------------------
 

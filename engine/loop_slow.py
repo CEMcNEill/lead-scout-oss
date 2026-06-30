@@ -23,17 +23,59 @@ voice or rubric: proposals are written as markdown for the rep to approve.
 
 from __future__ import annotations
 
+import datetime as dt
 import difflib
 from dataclasses import dataclass, field
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
-from engine.gmail import GmailClient
+from engine.gmail import GmailClient, GmailMessage
 from engine.ledger import Ledger
 from engine.salesforce import _soql_escape
 from engine.slack import SlackClient, account_resolution
-from shared.contracts import Draft, LeadRun, RepConfig, RunStatus
+from shared.contracts import Draft, DispositionKind, LeadRun, RepConfig, RunStatus, Touch
 from shared.model import ModelClient, ModelTier, parse_json
+
+# Markers that a thread message is an automated bounce/OOO, not a real reply. The
+# follow-up loop must not read these as a human reply (which would suppress a due
+# follow-up) nor treat them as grounds to stop nudging.
+_AUTO_REPLY_MARKERS = (
+    "out of office", "automatic reply", "auto-reply", "autoreply",
+    "away from my", "on vacation", "vacation responder", "delivery status",
+    "mail delivery", "undeliverable",
+)
+_AUTO_REPLY_SENDERS = ("mailer-daemon", "no-reply", "noreply", "postmaster")
+
+
+def _parse_email_date(value: str | None) -> dt.datetime | None:
+    """Parse an RFC2822 Date header to an aware UTC datetime, or None if it cannot
+    be parsed (unknown -> fail closed)."""
+    if not value:
+        return None
+    try:
+        parsed = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def _addr_matches(from_addr: str | None, account: str | None) -> bool:
+    if not from_addr or not account:
+        return False
+    return account.strip().lower() in from_addr.lower()
+
+
+def _is_auto_reply(msg: GmailMessage) -> bool:
+    blob = f"{msg.subject or ''}\n{msg.body or ''}".lower()
+    if any(marker in blob for marker in _AUTO_REPLY_MARKERS):
+        return True
+    sender = (msg.from_addr or "").lower()
+    return any(s in sender for s in _AUTO_REPLY_SENDERS)
 
 # Slack thread shape posted by the notifier: [card, reasoning, ...rep replies].
 # Replies beyond the engine's own two messages are the rep's judgment signal.
@@ -128,6 +170,8 @@ class SlowLoopResult:
     runs_with_sent: int = 0
     runs_with_replies: int = 0
     crm_dispositions: int = 0  # rep dispositions read from Salesforce Task fields
+    followups_scheduled: int = 0  # runs whose next follow-up was (re)scheduled
+    replies_detected: int = 0  # runs where a target reply was detected in-thread
     voice_proposal_path: str | None = None
     rubric_proposal_path: str | None = None
     # Per newly-processed rep reply: a threaded ack the caller posts back. The
@@ -159,6 +203,7 @@ class SlowLoop:
         rubric_path: Path,
         sf_writer: Any = None,
         org_id_write_field: str = "posthog_org_id__c",
+        followup_cadence: dict[str, list[int]] | None = None,
     ) -> None:
         self._ledger = ledger
         self._gmail = gmail
@@ -170,6 +215,9 @@ class SlowLoop:
         self._rubric_path = Path(rubric_path)
         self._writer = sf_writer  # something with update_record(sobject, id, fields)
         self._write_field = org_id_write_field
+        # lead_type -> follow-up cadence (days). Absent/empty means single-touch, so
+        # nothing is ever scheduled (this is what keeps the default behavior intact).
+        self._cadence = followup_cadence or {}
 
     # --- entry point -----------------------------------------------------
 
@@ -195,6 +243,11 @@ class SlowLoop:
             by_task[d.task_id] = d
         result.disagreements = list(by_task.values())
         result.account_corrections = self._collect_account_corrections(runs)
+        # Follow-up state (sent detection, reply detection, next-touch scheduling)
+        # always runs: it is a fast, idempotent read fit for the 5-minute sweep, and
+        # the follow-up poll depends on it. It stages nothing -- the followups
+        # command (Phase 2c) is the only thing that drafts a follow-up.
+        self._collect_followup_state(runs, result)
 
         if do_proposals:
             if result.voice_edits:
@@ -260,6 +313,82 @@ class SlowLoop:
             if subject_key and subject_key in (msg.subject or "").lower():
                 return msg
         return None
+
+    # --- follow-up state -------------------------------------------------
+
+    def _collect_followup_state(self, runs: list[LeadRun], result: SlowLoopResult) -> None:
+        """Detect each call's first send, whether the target replied, and when the
+        next follow-up is due. Stages nothing -- that is the followups command's job
+        (Phase 2c). Fail closed: a touch is scheduled only when a real send was
+        matched, the thread was readable, and no reply was seen."""
+        for run in runs:
+            if run.status != RunStatus.STAGED_FOR_REVIEW or run.staged_draft is None:
+                continue
+            if run.disposition is None or run.disposition.disposition != DispositionKind.CALL:
+                continue  # only call dispositions get a sequence
+            sent = self._match_sent(run.staged_draft)
+            if sent is None:
+                continue  # not sent yet -> nothing due (next_touch_due stays None)
+            sent_dt = _parse_email_date(sent.date)
+            run.thread_id = sent.thread_id or run.thread_id
+            self._record_touch1(run, sent, sent_dt)
+            replied = self._detect_reply(run, sent_dt)
+            if replied is not None:
+                run.outcome.replied = replied
+                if replied:
+                    result.replies_detected += 1
+            run.next_touch_due = self._compute_due(run, sent_dt)
+            if run.next_touch_due:
+                result.followups_scheduled += 1
+            self._ledger.update(run)
+
+    def _record_touch1(self, run: LeadRun, sent: GmailMessage, sent_dt) -> None:
+        """Ensure touch 1 exists and reflects the matched send. Idempotent."""
+        iso = sent_dt.isoformat() if sent_dt else None
+        existing = next((t for t in run.touches if t.n == 1), None)
+        if existing is None:
+            run.touches.insert(0, Touch(
+                n=1, subject=run.staged_draft.subject, body=run.staged_draft.body,
+                staged_at=run.ts, sent_at=iso, draft_ref=run.staged_draft_ref))
+        else:
+            existing.sent_at = iso or existing.sent_at
+
+    def _detect_reply(self, run: LeadRun, after_dt) -> bool | None:
+        """True/False when the thread is readable; None when it cannot be read
+        (unknown). A reply is any non-rep, non-auto message after our send."""
+        if not run.thread_id:
+            return None
+        thread = self._gmail.get_thread(run.thread_id)
+        if not thread:
+            return None
+        target = (run.staged_draft.to or "").lower()
+        replied = False
+        for m in thread:
+            if _addr_matches(m.from_addr, self._rep.gmail_account):
+                continue  # the rep's own message in the thread
+            if _is_auto_reply(m):
+                continue
+            mdt = _parse_email_date(m.date)
+            if after_dt is not None and mdt is not None and mdt <= after_dt:
+                continue  # predates our send
+            if target and target in (m.from_addr or "").lower():
+                return True
+            replied = True
+        return replied
+
+    def _compute_due(self, run: LeadRun, last_sent_dt) -> str | None:
+        """Next-touch time, or None. Scheduled only when we confirmed no reply
+        (outcome.replied is False), the send time is known, and touches remain."""
+        if run.outcome.replied is not False:
+            return None  # replied, or reply state unknown -> do not schedule
+        if last_sent_dt is None:
+            return None  # unparseable send time -> fail closed
+        cadence = self._cadence.get(run.route.lead_type, [])
+        sent_count = sum(1 for t in run.touches if t.sent_at)
+        if sent_count < 1 or sent_count > len(cadence):
+            return None  # single-touch play, or sequence already complete
+        due = last_sent_dt + dt.timedelta(days=cadence[sent_count - 1])
+        return due.isoformat()
 
     def _classify_edits(self, staged: str, sent: str) -> dict[str, Any]:
         resp = self._model.complete(

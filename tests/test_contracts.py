@@ -128,6 +128,28 @@ def test_lead_run_round_trip():
     assert back == run
 
 
+def test_touch_round_trip_and_lead_run_touches():
+    from shared.contracts import Touch
+
+    t = Touch(n=1, subject="PostHog at Acme", body="hi", staged_at="2026-06-01T00:00:00Z",
+              sent_at="2026-06-01T10:00:00+00:00", draft_ref="https://draft/1")
+    assert Touch.from_dict(json.loads(json.dumps(t.to_dict()))) == t
+
+    run = _sample_run()
+    assert run.touches == [] and run.next_touch_due is None  # defaults
+    run.touches = [t]
+    run.next_touch_due = "2026-06-05T10:00:00+00:00"
+    back = LeadRun.from_dict(json.loads(json.dumps(run.to_dict())))
+    assert back.touches == [t]
+    assert back.next_touch_due == "2026-06-05T10:00:00+00:00"
+    # an old blob without the keys still loads
+    blob = json.loads(json.dumps(run.to_dict()))
+    del blob["touches"]
+    del blob["next_touch_due"]
+    loaded = LeadRun.from_dict(blob)
+    assert loaded.touches == [] and loaded.next_touch_due is None
+
+
 def test_lead_run_thread_id_round_trips_and_defaults_none():
     run = _sample_run()
     assert run.thread_id is None  # default

@@ -227,6 +227,8 @@ def build_slow_loop(ledger: Ledger, client=None, repo_root: Path = REPO_ROOT):
         from engine.slack_api import build_slack_client_from_env
 
         slack = build_slack_client_from_env()
+    from shared.registry import build_default_registry
+
     return SlowLoop(
         ledger=ledger, gmail=gmail, slack=slack, model=AnthropicModel(ModelPolicy()),
         rep_config=default_rep_config(),
@@ -234,6 +236,7 @@ def build_slow_loop(ledger: Ledger, client=None, repo_root: Path = REPO_ROOT):
         voice_profile_path=voice_profile_path(repo_root),
         rubric_path=repo_root / "config" / "rubric.md",
         sf_writer=client,  # the SF client writes account corrections
+        followup_cadence=build_default_registry("").followup_cadences(),
     )
 
 

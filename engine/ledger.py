@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS lead_runs (
     voice_profile_version TEXT,
     rubric_version       TEXT,
     model_policy_version TEXT,
+    next_touch_due       TEXT,
+    replied              INTEGER,
     blob                 TEXT NOT NULL
 );
 
@@ -41,6 +43,13 @@ CREATE INDEX IF NOT EXISTS idx_lead_runs_task ON lead_runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_lead_runs_rep  ON lead_runs(rep_id);
 CREATE INDEX IF NOT EXISTS idx_lead_runs_ts   ON lead_runs(ts);
 """
+
+# Columns promoted from the blob after the original schema shipped. Added to an
+# existing DB with a guarded ALTER on open so old ledgers keep working.
+_MIGRATIONS = [
+    ("next_touch_due", "ALTER TABLE lead_runs ADD COLUMN next_touch_due TEXT"),
+    ("replied", "ALTER TABLE lead_runs ADD COLUMN replied INTEGER"),
+]
 
 
 class Ledger:
@@ -59,7 +68,21 @@ class Ledger:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Add columns promoted after the original schema, idempotently. CREATE
+        TABLE handles fresh DBs; this catches DBs created before a column existed."""
+        existing = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(lead_runs)")
+        }
+        for column, ddl in _MIGRATIONS:
+            if column not in existing:
+                self._conn.execute(ddl)
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_lead_runs_due ON lead_runs(next_touch_due)"
+        )
 
     def close(self) -> None:
         self._conn.close()
@@ -94,8 +117,9 @@ class Ledger:
             INSERT INTO lead_runs (
                 id, task_id, rep_id, ts, status, lead_type, qualifier,
                 disposition, confidence, total_usd,
-                voice_profile_version, rubric_version, model_policy_version, blob
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                voice_profile_version, rubric_version, model_policy_version,
+                next_touch_due, replied, blob
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             self._row_params(run),
         )
@@ -120,6 +144,8 @@ class Ledger:
             vpv,
             rv,
             mpv,
+            next_touch_due,
+            replied,
             blob,
         ) = params
         cur = self._conn.execute(
@@ -128,12 +154,13 @@ class Ledger:
                 task_id=?, rep_id=?, ts=?, status=?, lead_type=?, qualifier=?,
                 disposition=?, confidence=?, total_usd=?,
                 voice_profile_version=?, rubric_version=?, model_policy_version=?,
-                blob=?
+                next_touch_due=?, replied=?, blob=?
             WHERE id=?
             """,
             (
                 task_id, rep_id, ts, status, lead_type, qualifier,
-                disposition, confidence, total_usd, vpv, rv, mpv, blob, id_,
+                disposition, confidence, total_usd, vpv, rv, mpv,
+                next_touch_due, replied, blob, id_,
             ),
         )
         if cur.rowcount == 0:
@@ -205,12 +232,33 @@ class Ledger:
     def count(self) -> int:
         return self._conn.execute("SELECT COUNT(*) AS n FROM lead_runs").fetchone()["n"]
 
+    # --- follow-up ------------------------------------------------------
+
+    def runs_due_for_followup(self, now_iso: str, *, rep_id: str | None = None) -> list[LeadRun]:
+        """Runs whose next follow-up is due at or before now and that have not been
+        replied to. The follow-up poll reads this; the fast loop never does. ts is
+        UTC ISO so a string compare is a time compare. A run with replied=1 or a
+        null due time is excluded (sequence complete, replied, or single-touch)."""
+        clauses = ["next_touch_due IS NOT NULL", "next_touch_due <= ?",
+                   "(replied IS NULL OR replied = 0)"]
+        args: list[Any] = [now_iso]
+        if rep_id is not None:
+            clauses.append("rep_id = ?")
+            args.append(rep_id)
+        sql = (
+            "SELECT blob FROM lead_runs WHERE " + " AND ".join(clauses)
+            + " ORDER BY next_touch_due ASC"
+        )
+        cur = self._conn.execute(sql, args)
+        return [LeadRun.from_dict(json.loads(r["blob"])) for r in cur.fetchall()]
+
     # --- internal --------------------------------------------------------
 
     @staticmethod
     def _row_params(run: LeadRun) -> tuple[Any, ...]:
         disposition = run.disposition.disposition.value if run.disposition else None
         confidence = run.disposition.confidence if run.disposition else None
+        replied = None if run.outcome.replied is None else int(bool(run.outcome.replied))
         return (
             run.id,
             run.task_id,
@@ -225,5 +273,7 @@ class Ledger:
             run.voice_profile_version,
             run.rubric_version,
             run.model_policy_version,
+            run.next_touch_due,
+            replied,
             json.dumps(run.to_dict()),
         )

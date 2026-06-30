@@ -138,3 +138,50 @@ def test_promoted_columns_match_blob(ledger):
     assert row["lead_type"] == "big_fish"
     assert row["disposition"] == "call"
     assert row["total_usd"] == 0.04
+
+
+# --- follow-up: due query + schema migration ------------------------------
+
+_OLD_SCHEMA = """
+CREATE TABLE lead_runs (
+    id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, rep_id TEXT NOT NULL,
+    ts TEXT NOT NULL, status TEXT NOT NULL, lead_type TEXT, qualifier TEXT,
+    disposition TEXT, confidence REAL, total_usd REAL NOT NULL DEFAULT 0,
+    voice_profile_version TEXT, rubric_version TEXT, model_policy_version TEXT,
+    blob TEXT NOT NULL
+);
+"""
+
+
+def _due_run(run_id, task_id, *, due, replied):
+    run = _run(run_id, task_id)
+    run.next_touch_due = due
+    run.outcome.replied = replied
+    return run
+
+
+def test_runs_due_for_followup_filters_time_replied_and_rep(ledger):
+    ledger.insert(_due_run("r1", "t1", due="2026-06-10T00:00:00+00:00", replied=False))
+    ledger.insert(_due_run("r2", "t2", due="2026-07-01T00:00:00+00:00", replied=False))  # future
+    ledger.insert(_due_run("r3", "t3", due="2026-06-10T00:00:00+00:00", replied=True))   # replied
+    ledger.insert(_run("r4", "t4"))  # next_touch_due None -> never due
+    due = ledger.runs_due_for_followup("2026-06-15T00:00:00+00:00", rep_id="rep_chris")
+    assert [r.id for r in due] == ["r1"]
+    # other rep filtered out
+    assert ledger.runs_due_for_followup("2026-06-15T00:00:00+00:00", rep_id="someone_else") == []
+
+
+def test_migration_adds_columns_to_pre_migration_db(tmp_path):
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_SCHEMA)
+    conn.commit()
+    conn.close()
+
+    led = Ledger(path)  # opens and migrates
+    cols = {r["name"] for r in led._conn.execute("PRAGMA table_info(lead_runs)")}
+    assert "next_touch_due" in cols and "replied" in cols
+    # and the due query works end to end on the migrated DB
+    led.insert(_due_run("r1", "t1", due="2026-06-10T00:00:00+00:00", replied=False))
+    assert [r.id for r in led.runs_due_for_followup("2026-06-15T00:00:00+00:00")] == ["r1"]
+    led.close()
