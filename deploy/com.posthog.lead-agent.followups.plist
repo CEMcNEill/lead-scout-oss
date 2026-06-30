@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Agent-plus-MCP daily follow-up poll: once a day, run the lead-agent-followups
+  skill as a local Claude agent using your connected Gmail MCP. It detects replies,
+  decides which sequences are due, and stages drafts-only follow-ups. Never sends.
+
+  This is the only behavior that nudges a lead more than once, so it is its own job:
+  to pause follow-ups without touching the rest, unload just this one:
+    launchctl unload ~/Library/LaunchAgents/com.posthog.lead-agent.followups.plist
+
+  Install (edit the path first):
+    cp deploy/com.posthog.lead-agent.followups.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.posthog.lead-agent.followups.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.posthog.lead-agent.followups</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/evilmac/Dev/lead-scout/scripts/run_followups.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/evilmac/Dev/lead-scout</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SOURCE</key><string>salesforce</string>
+        <key>LEDGER_PATH</key>
+        <string>/Users/evilmac/Dev/lead-scout/ledger/lead_runs.db</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <!-- daily at 08:00 local, after the rep's inbox has settled overnight -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>8</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/followups.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/evilmac/Dev/lead-scout/ledger/followups.err.log</string>
+</dict>
+</plist>

@@ -18,5 +18,8 @@ Lead with the savings opportunity, not just "your credits are ending." Order:
 
 Warm, low-pressure, recipient stays in control. This guidance is carried on the qualifier as `draft_guidance` and handed to the drafter; the fact-check gate still governs every claim.
 
+## How to follow up
+Cadence is two nudges (4 days, then 7) on the same thread, drafts only. Each is shorter than the last and adds one fresh, grounded angle rather than repeating the first message. Follow-up 1: a light reminder that the credit cliff is approaching, with a concrete next step (a quick look at the spend tab, or a 15-minute call to size the pre-paid discount). Follow-up 2: a final low-pressure check-in - offer to leave it for now and reconnect closer to the renewal if the timing is off. Never guilt-trip about not hearing back; a reply or a booked call stops the sequence automatically.
+
 ## Notes
 The account is the unit. Outreach can correctly go to a different person than the named lead; the disposition records the chosen target and why.
