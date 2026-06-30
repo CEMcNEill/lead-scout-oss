@@ -163,6 +163,14 @@ def render_card(ledger, task_id, draft_url: str | None) -> dict[str, Any]:
     if run is None:
         raise KeyError(f"no ledger run for task {task_id}")
     if draft_url:
+        if run.staged_draft is None:
+            # The engine withheld the draft (fact-check or a hard stop). Refusing
+            # the URL keeps a ghost draft off a withheld lead and surfaces the skill
+            # error: do not create a Gmail draft for a lead with no staged draft.
+            raise ValueError(
+                f"task {task_id}: no staged draft (withheld); refusing to attach a "
+                "draft URL. Render the card without --draft-url for withheld leads."
+            )
         run.staged_draft_ref = draft_url
         ledger.update(run)
     base = os.environ.get("SF_INSTANCE_URL")

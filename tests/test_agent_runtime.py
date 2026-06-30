@@ -144,6 +144,27 @@ def test_render_card_sets_ref_and_returns_text(ledger):
     assert ledger.get_by_task("T1").staged_draft_ref == "https://mail.google.com/d/abc"
 
 
+def test_render_card_refuses_draft_url_when_withheld(ledger):
+    # engine withheld the draft (fact-check / hard stop): no staged_draft
+    run = _staged_run()
+    run.staged_draft = None  # withheld: no draft content
+    ledger.insert(run)
+    with pytest.raises(ValueError, match="withheld"):
+        ar.render_card(ledger, "T1", "https://mail.google.com/d/ghost")
+    # nothing recorded
+    assert ledger.get_by_task("T1").staged_draft_ref is None
+
+
+def test_render_card_without_url_works_for_withheld(ledger):
+    # a withheld lead still gets a card, just no draft link
+    run = _staged_run()
+    run.staged_draft = None
+    ledger.insert(run)
+    out = ar.render_card(ledger, "T1", None)
+    assert "Acme" in out["card"]
+    assert ledger.get_by_task("T1").staged_draft_ref is None
+
+
 def test_set_thread_records_ref(ledger):
     ledger.insert(_staged_run())
     ar.set_thread(ledger, "T1", "171.0001")

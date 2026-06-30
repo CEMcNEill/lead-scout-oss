@@ -13,6 +13,23 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# Single-sweep lock: never let two sweeps run at once (a manual run overlapping the
+# schedule, or a slow run still going when the next interval fires). Overlapping
+# sweeps both poll the same not-yet-committed leads and double-stage. macOS has no
+# flock, so use an atomic mkdir lock that stores the holder pid; if the holder is
+# gone (e.g. the watchdog SIGKILLed it) the lock is stale and we take it over.
+LOCK="ledger/.sweep.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  OLDPID="$(cat "$LOCK/pid" 2>/dev/null || true)"
+  if [ -n "$OLDPID" ] && kill -0 "$OLDPID" 2>/dev/null; then
+    echo "another sweep (pid $OLDPID) is running; skipping this interval" >&2
+    exit 0
+  fi
+  rm -rf "$LOCK" && mkdir "$LOCK" || { echo "could not acquire sweep lock" >&2; exit 0; }
+fi
+echo $$ > "$LOCK/pid"
+trap 'rm -rf "$LOCK" 2>/dev/null' EXIT TERM INT
+
 START="$(date -u +%Y-%m-%dT%H:%M:%S).000000+00:00"
 
 # --permission-mode acceptEdits so the unattended agent can write the Clay JSON
