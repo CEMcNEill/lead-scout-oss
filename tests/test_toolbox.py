@@ -201,6 +201,39 @@ def test_drafter_blanks_ungrounded_recipient_name():
     assert "greet without a name" in prompt.lower()
 
 
+def test_drafter_includes_play_guidance_in_prompt():
+    # play-specific draft_guidance reaches the drafter prompt so the model follows
+    # the play's structure (e.g. startup roll-off leads with the savings hook)
+    from shared.contracts import Claim, Disposition, DispositionKind, Target
+    from shared.tools.drafter import DrafterTool
+
+    model = FakeModel()
+    model.set("drafter", json.dumps({"subject": "s", "body": "Hey -\n\nb", "claims_used": ["c1"]}))
+    d = DrafterTool(model, voice_profile="v", exemplars=[], signature="Chris")
+    dossier = [Claim(id="c1", field="company_name", value="Acme", source="crm",
+                     raw={"m": 1}, confidence=0.9)]
+    disp = Disposition(DispositionKind.CALL, "r (c1)", 0.8, ["c1"],
+                       Target(name=None, email="x@acme.com"))
+    d.draft(dossier, disp, angle="plg-rolloff-led",
+            guidance="Lead with the volume-discount savings opportunity.")
+    prompt = model.calls[-1]["prompt"]
+    assert "Play-specific drafting guidance" in prompt
+    assert "volume-discount savings" in prompt
+    # no guidance -> no guidance block
+    model2 = FakeModel()
+    model2.set("drafter", json.dumps({"subject": "s", "body": "Hey -\n\nb", "claims_used": ["c1"]}))
+    DrafterTool(model2, voice_profile="v", exemplars=[], signature="C").draft(
+        dossier, disp, angle="a")
+    assert "Play-specific drafting guidance" not in model2.calls[-1]["prompt"]
+
+
+def test_startup_rolloff_qualifier_carries_draft_guidance():
+    from qualifiers.startup_rolloff.qualifier import StartupRolloffQualifier
+    q = StartupRolloffQualifier(rubric="r")
+    assert "pre-paid plan" in q.draft_guidance
+    assert "volume discount" in q.draft_guidance
+
+
 def test_drafter_keeps_grounded_recipient_name():
     from shared.contracts import Claim, Disposition, DispositionKind, Target
     from shared.tools.drafter import DrafterTool
