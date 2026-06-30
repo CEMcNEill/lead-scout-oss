@@ -262,15 +262,31 @@ def slow_run(ledger, data: dict[str, Any], *, client, model, rep_config, stamp,
         ]
         for recipient, msgs in data.get("sent", {}).items()
     }
+    from engine.gmail import GmailMessage as _GM
+    from shared.registry import build_default_registry
+
+    threads = {
+        tid: [
+            _GM(
+                id=m.get("id", ""), thread_id=m.get("thread_id", tid),
+                subject=m.get("subject", ""), to=m.get("to", ""),
+                body=m.get("body", ""), date=m.get("date", ""),
+                from_addr=m.get("from", m.get("from_addr", "")),
+            )
+            for m in msgs
+        ]
+        for tid, msgs in data.get("gmail_threads", {}).items()
+    }
     loop = SlowLoop(
         ledger=ledger,
-        gmail=RecordedGmailClient(sent=sent),
+        gmail=RecordedGmailClient(sent=sent, threads=threads),
         slack=RecordedSlackClient(thread_messages=data.get("threads", {})),
         model=model, rep_config=rep_config,
         proposals_dir=repo_root / "config" / "proposals",
         voice_profile_path=voice_profile_path(repo_root),
         rubric_path=repo_root / "config" / "rubric.md",
         sf_writer=client,
+        followup_cadence=build_default_registry("").followup_cadences(),
     )
     if updates_only:
         return loop.run_updates_only(stamp)

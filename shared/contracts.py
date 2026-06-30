@@ -336,6 +336,42 @@ class Outcome:
 
 
 @dataclass
+class Touch:
+    """One outreach in a lead's sequence. Append-only history on the LeadRun: touch
+    1 is the first staged draft, touch 2+ are follow-ups. `sent_at` is stamped when
+    the slow loop detects the rep actually sent it (a draft staged but never sent
+    has sent_at=None and never advances the sequence)."""
+
+    n: int
+    subject: str
+    body: str
+    staged_at: str | None = None
+    sent_at: str | None = None
+    draft_ref: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "n": self.n,
+            "subject": self.subject,
+            "body": self.body,
+            "staged_at": self.staged_at,
+            "sent_at": self.sent_at,
+            "draft_ref": self.draft_ref,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Touch":
+        return cls(
+            n=d["n"],
+            subject=d.get("subject", ""),
+            body=d.get("body", ""),
+            staged_at=d.get("staged_at"),
+            sent_at=d.get("sent_at"),
+            draft_ref=d.get("draft_ref"),
+        )
+
+
+@dataclass
 class CostEntry:
     """One metered spend: a Claude call or a paid tool call."""
 
@@ -432,6 +468,11 @@ class LeadRun:
     # matches the sent item. The follow-up loop reads this thread to detect a reply
     # and stages each follow-up into it. None until a send is matched.
     thread_id: str | None = None
+    # append-only outreach history (touch 1 = first draft, 2+ = follow-ups) and the
+    # time the next follow-up is due (None = nothing due / sequence complete or
+    # replied). Both written by the slow loop; the follow-up poll reads them.
+    touches: list[Touch] = field(default_factory=list)
+    next_touch_due: str | None = None
     outcome: Outcome = field(default_factory=Outcome)
 
     # for runs that errored
@@ -463,6 +504,8 @@ class LeadRun:
             "sent_draft": self.sent_draft.to_dict() if self.sent_draft else None,
             "draft_diff": self.draft_diff,
             "thread_id": self.thread_id,
+            "touches": [t.to_dict() for t in self.touches],
+            "next_touch_due": self.next_touch_due,
             "outcome": self.outcome.to_dict(),
             "error": self.error,
         }
@@ -494,6 +537,8 @@ class LeadRun:
             sent_draft=Draft.from_dict(d["sent_draft"]) if d.get("sent_draft") else None,
             draft_diff=d.get("draft_diff"),
             thread_id=d.get("thread_id"),
+            touches=[Touch.from_dict(t) for t in d.get("touches", [])],
+            next_touch_due=d.get("next_touch_due"),
             outcome=Outcome.from_dict(d.get("outcome", {})),
             error=d.get("error"),
         )

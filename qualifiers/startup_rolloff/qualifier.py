@@ -14,6 +14,7 @@ class StartupRolloffQualifier(AgenticQualifier):
     lead_type = "startup_rolloff"
     signal = "startup_rolloff"
     angle = "plg-rolloff-led"
+    followup_cadence_days = [4, 7]  # nudge before the credit cliff, then once more
     judge_guidance = (
         "A re-evaluation moment, not a disqualifier. Weight the live use case and whether an "
         "owner can decide on a paid plan as credits run out. "

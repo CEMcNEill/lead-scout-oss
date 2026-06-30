@@ -22,6 +22,7 @@ class OutboundQualifier(ProspectQualifier):
     lead_type = "outbound"
     angle = "outbound-prospect-led"
     use_usage = True  # fold in usage if the contact already maps to an account
+    followup_cadence_days = [3, 6]  # two light nudges after the first human touch
     judge_guidance = (
         "A cold-ish prospect the rep already chose to sequence. Weight company fit and the "
         "use case the persona implies; current PostHog usage is usually thin or absent, so do "

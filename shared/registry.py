@@ -48,6 +48,14 @@ class QualifierRegistry:
     def names(self) -> list[str]:
         return sorted(self._qualifiers)
 
+    def followup_cadences(self) -> dict[str, list[int]]:
+        """lead_type -> follow-up cadence (days), for the slow loop to compute when
+        the next touch is due. A lead type with no cadence is single-touch."""
+        return {
+            q.lead_type: list(getattr(q, "followup_cadence_days", []) or [])
+            for q in self._qualifiers.values()
+        }
+
 
 def build_default_registry(rubric: str) -> QualifierRegistry:
     """Assemble every registered qualifier: the inbound, onboarding, and outbound
