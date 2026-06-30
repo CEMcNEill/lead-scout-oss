@@ -153,6 +153,34 @@ def account_first_cases(lead_type: str) -> list[ConformanceCase]:
     return [ConformanceCase(f"{lead_type}/call", _plg_world(), "t_plg", model)]
 
 
+# Agentic account-first: same world + complete-script, plus a scripted run_turn
+# turn-list. The agent calls the same tools the deterministic gather did, in the
+# same order, so the same Claims land (c1 = crm, seeded before the loop).
+AGENTIC_ACCOUNT_FIRST_TURNS = [
+    {"tool_calls": [{"name": "usage_research", "input": {}}]},
+    {"tool_calls": [{"name": "person_research", "input": {"email": "sam@acme.com", "name": "Sam Rivera"}},
+                    {"name": "person_research", "input": {"email": "dana@acme.com", "name": "Dana Lopez"}}]},
+    {"tool_calls": [{"name": "company_research", "input": {"domain": "acme.com"}}]},
+    {"tool_calls": [{"name": "use_case_mapping", "input": {}}]},
+    {"text": "Gathered usage, both personas, company, and the use case. Ready to judge.",
+     "stop": "end_turn"},
+]
+
+
+def agentic_account_first_cases(lead_type: str) -> list[ConformanceCase]:
+    model = FakeModel({
+        **_plg_research_script(),
+        f"{lead_type}.judgment": json.dumps(
+            {"disposition": "call", "reasoning": "usage clears bar (c1); engage VP",
+             "confidence": 0.8, "claim_refs": ["c1"], "target_email": "dana@acme.com"}),
+        "drafter": json.dumps({"subject": "PostHog at Acme",
+                               "body": "Your team is at ~6M events/mo.", "claims_used": ["c1"]}),
+        "factcheck": _grounded_factcheck(),
+    })
+    model.set_tools(f"{lead_type}.agent", AGENTIC_ACCOUNT_FIRST_TURNS)
+    return [ConformanceCase(f"{lead_type}/call", _plg_world(), "t_plg", model)]
+
+
 # --- product-led: prospect signals ----------------------------------------
 
 
@@ -246,7 +274,10 @@ def all_cases() -> dict[str, list[ConformanceCase]]:
         "onboarding": onboarding_cases(),
     }
     for lt in ACCOUNT_FIRST_LEAD_TYPES:
-        cases[lt] = account_first_cases(lt)
+        # startup_rolloff is agentic (Phase 1); the rest stay deterministic until
+        # Phase 3 migrates them.
+        cases[lt] = (agentic_account_first_cases(lt) if lt == "startup_rolloff"
+                     else account_first_cases(lt))
     for lt in PROSPECT_LEAD_TYPES:
         cases[lt] = prospect_cases(lt)
     return cases
