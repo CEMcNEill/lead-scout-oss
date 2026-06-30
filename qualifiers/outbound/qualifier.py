@@ -7,21 +7,21 @@ sequence before this qualifier is reached. What lands here is a named prospect
 worth a human touch (the sequence is done or paused), with little or no PostHog
 usage of their own, so this uses the prospect flow: enrich the person and
 company, fold in usage only if an account already exists, and map the use case
-from persona + company. Deterministic for now; Phase 3 makes it agentic.
+from persona + company. Agentic: the interior orchestrates the research tools and
+runs this play's SKILL.md as its charter.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from qualifiers.plg_base import ProspectQualifier
+from shared.agentic import AgenticQualifier
 
 
-class OutboundQualifier(ProspectQualifier):
+class OutboundQualifier(AgenticQualifier):
     name = "outbound"
     lead_type = "outbound"
     angle = "outbound-prospect-led"
-    use_usage = True  # fold in usage if the contact already maps to an account
     followup_cadence_days = [3, 6]  # two light nudges after the first human touch
     judge_guidance = (
         "A cold-ish prospect the rep already chose to sequence. Weight company fit and the "

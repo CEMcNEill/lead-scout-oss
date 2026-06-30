@@ -185,6 +185,16 @@ def test_lookalike_folds_in_usage_when_the_account_is_active():
                                "body": "Your team is at ~1.5M events/mo.", "claims_used": ["c1"]}),
         "factcheck": json.dumps([{"assertion": "a grounded fact", "claim_ref": "c1"}]),
     })
+    # lookalike is agentic (Phase 3); when the lookalike resolves to an active
+    # account the agent also pulls usage, so its turn-list includes usage_research.
+    model.set_tools("lookalike.agent", [
+        {"tool_calls": [{"name": "usage_research", "input": {}}]},
+        {"tool_calls": [{"name": "person_research",
+                         "input": {"email": "sam@acme.com", "name": "Sam Rivera"}}]},
+        {"tool_calls": [{"name": "company_research", "input": {"domain": "acme.com"}}]},
+        {"tool_calls": [{"name": "use_case_mapping", "input": {}}]},
+        {"text": "Pulled usage, persona, company, use case.", "stop": "end_turn"},
+    ])
     q = LookalikeQualifier(RUBRIC)
     result = q.run("t_la", world.tasks["t_la"], _toolbox(world, model))
 

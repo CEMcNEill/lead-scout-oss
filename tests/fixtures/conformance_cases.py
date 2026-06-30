@@ -214,6 +214,32 @@ def _prospect_research_script() -> dict[str, str]:
     }
 
 
+# Agentic prospect: the agent enriches the person + company and maps the use case
+# (no usage; the prospect world has no account). Same complete-script as the
+# deterministic prospect flow, plus a scripted run_turn turn-list.
+AGENTIC_PROSPECT_TURNS = [
+    {"tool_calls": [{"name": "person_research", "input": {"email": "jo@beta.io", "name": "Jo Kim"}}]},
+    {"tool_calls": [{"name": "company_research", "input": {"domain": "beta.io"}}]},
+    {"tool_calls": [{"name": "use_case_mapping", "input": {}}]},
+    {"text": "Enriched the persona and company and mapped the use case. Ready to judge.",
+     "stop": "end_turn"},
+]
+
+
+def agentic_prospect_cases(lead_type: str) -> list[ConformanceCase]:
+    model = FakeModel({
+        **_prospect_research_script(),
+        f"{lead_type}.judgment": json.dumps(
+            {"disposition": "call", "reasoning": "strong fit and timing (c1)",
+             "confidence": 0.72, "claim_refs": ["c1"], "target_email": "jo@beta.io"}),
+        "drafter": json.dumps({"subject": "PostHog for Beta",
+                               "body": "Saw Beta is scaling fast.", "claims_used": ["c1"]}),
+        "factcheck": _grounded_factcheck(),
+    })
+    model.set_tools(f"{lead_type}.agent", AGENTIC_PROSPECT_TURNS)
+    return [ConformanceCase(f"{lead_type}/call", _prospect_world(), "t_pro", model)]
+
+
 def prospect_cases(lead_type: str) -> list[ConformanceCase]:
     model = FakeModel({
         **_prospect_research_script(),
@@ -247,6 +273,15 @@ def _outbound_world() -> World:
     )
 
 
+AGENTIC_OUTBOUND_TURNS = [
+    {"tool_calls": [{"name": "person_research", "input": {"email": "lee@gamma.dev", "name": "Lee Park"}}]},
+    {"tool_calls": [{"name": "company_research", "input": {"domain": "gamma.dev"}}]},
+    {"tool_calls": [{"name": "use_case_mapping", "input": {}}]},
+    {"text": "Enriched the prospect and company and mapped the use case. Ready to judge.",
+     "stop": "end_turn"},
+]
+
+
 def outbound_cases() -> list[ConformanceCase]:
     model = FakeModel({
         "person_research.synthesis:lee@gamma.dev": json.dumps(
@@ -264,6 +299,7 @@ def outbound_cases() -> list[ConformanceCase]:
                                "body": "Saw Gamma is building devtools.", "claims_used": ["c1"]}),
         "factcheck": _grounded_factcheck(),
     })
+    model.set_tools("outbound.agent", AGENTIC_OUTBOUND_TURNS)
     return [ConformanceCase("outbound/call", _outbound_world(), "t_out", model)]
 
 
@@ -318,5 +354,6 @@ def all_cases() -> dict[str, list[ConformanceCase]]:
         # the whole account-first family is agentic as of Phase 3.
         cases[lt] = agentic_account_first_cases(lt)
     for lt in PROSPECT_LEAD_TYPES:
-        cases[lt] = prospect_cases(lt)
+        # the prospect family is agentic as of Phase 3.
+        cases[lt] = agentic_prospect_cases(lt)
     return cases
