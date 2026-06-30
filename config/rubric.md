@@ -63,6 +63,19 @@ complete dossier, not a sequence of pass/fail checks.
   relationship is ambiguous, treat it as one input among several rather than a
   gate, and consider nurture over disqualify.
 
+## Self-hosted and unsupported-deployment screen
+
+- PostHog does not offer commercial support, paid engagements, or sales assistance
+  for self-hosted (self-managed) deployments. A lead whose ask depends on commercial
+  support for a self-hosted deployment is not a sales prospect for that ask.
+- When the dossier shows a self-hosted or self-managed deployment seeking support,
+  an engagement, or paid features in that environment, prefer disqualify with a
+  brief, direct decline. Do not draft a warm "let's get our team involved early"
+  outreach: that offers something we do not provide.
+- This is a prospect-validity screen, not a fit score: strong usage, a good persona,
+  or solid firmographics do not change it. If the same lead also has a separate
+  PostHog Cloud motion, weigh that on its own merits.
+
 ## Disqualify vs. nurture
 
 - disqualify still requires evidence and should be used sparingly. The cleanest
